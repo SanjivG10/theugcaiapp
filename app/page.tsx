@@ -1,103 +1,208 @@
-import Image from "next/image";
+"use client";
+
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useAuth } from "@/contexts/AuthContext";
+import { URLS } from "@/constants/urls";
+import { Video, Check, ArrowRight, Zap, Users, BarChart3 } from "lucide-react";
 
 export default function Home() {
-  return (
-    <div className="font-sans grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="font-mono list-inside list-decimal text-sm/6 text-center sm:text-left">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] font-mono font-semibold px-1 py-0.5 rounded">
-              app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
+  const { user } = useAuth();
+  const router = useRouter();
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+  return (
+    <div className="min-h-screen bg-gradient-to-b from-background to-muted/20">
+      <div className="container mx-auto px-4 py-16">
+        <div className="max-w-6xl mx-auto">
+          {/* Hero Section */}
+          <div className="text-center mb-16">
+            <div className="flex items-center justify-center space-x-3 mb-8">
+              <div className="w-12 h-12 bg-primary rounded-xl flex items-center justify-center">
+                <Video className="h-7 w-7 text-primary-foreground" />
+              </div>
+              <h1 className="text-4xl md:text-5xl font-bold">
+                AI UGC Platform
+              </h1>
+            </div>
+
+            <h2 className="text-2xl md:text-3xl font-semibold text-muted-foreground mb-6 max-w-4xl mx-auto">
+              Create Viral User-Generated Content Videos with AI in Minutes
+            </h2>
+
+            <p className="text-lg text-muted-foreground mb-8 max-w-2xl mx-auto">
+              Transform your marketing with AI-powered video creation. Generate
+              authentic, engaging UGC videos that convert viewers into
+              customers.
+            </p>
+
+            <div className="flex flex-col sm:flex-row gap-4 justify-center items-center mb-12">
+              {user ? (
+                <Button
+                  size="lg"
+                  onClick={() => router.push(URLS.DASHBOARD.HOME)}
+                >
+                  Go to Dashboard
+                  <ArrowRight className="ml-2 h-5 w-5" />
+                </Button>
+              ) : (
+                <>
+                  <Button size="lg" asChild>
+                    <Link href={URLS.AUTH.LOGIN}>
+                      Start Creating Videos
+                      <ArrowRight className="ml-2 h-5 w-5" />
+                    </Link>
+                  </Button>
+                  <Button variant="outline" size="lg" asChild>
+                    <Link href={URLS.AUTH.REGISTER}>Sign Up Free</Link>
+                  </Button>
+                </>
+              )}
+            </div>
+
+            {/* Key Features */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-16">
+              <div className="flex items-center justify-center space-x-3 p-4 bg-card rounded-lg border">
+                <Zap className="h-6 w-6 text-primary" />
+                <span className="font-medium">Generate in 5 minutes</span>
+              </div>
+              <div className="flex items-center justify-center space-x-3 p-4 bg-card rounded-lg border">
+                <Users className="h-6 w-6 text-primary" />
+                <span className="font-medium">10,000+ happy customers</span>
+              </div>
+              <div className="flex items-center justify-center space-x-3 p-4 bg-card rounded-lg border">
+                <BarChart3 className="h-6 w-6 text-primary" />
+                <span className="font-medium">300% better ROI</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Pricing Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <Card className="relative">
+              <CardHeader className="text-center">
+                <CardTitle className="text-xl">Starter</CardTitle>
+                <div className="text-3xl font-bold mt-4">
+                  $29
+                  <span className="text-sm font-normal text-muted-foreground">
+                    /month
+                  </span>
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  Perfect for small creators
+                </p>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="flex items-center space-x-2">
+                  <Check className="h-4 w-4 text-green-500" />
+                  <span className="text-sm">10 videos per month</span>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Check className="h-4 w-4 text-green-500" />
+                  <span className="text-sm">HD video quality</span>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Check className="h-4 w-4 text-green-500" />
+                  <span className="text-sm">Basic templates</span>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Check className="h-4 w-4 text-green-500" />
+                  <span className="text-sm">Email support</span>
+                </div>
+                <Button className="w-full mt-6" variant="outline" asChild>
+                  <Link href={URLS.AUTH.LOGIN}>Get Started</Link>
+                </Button>
+              </CardContent>
+            </Card>
+
+            <Card className="relative border-primary shadow-lg">
+              <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
+                <span className="bg-primary text-primary-foreground px-3 py-1 rounded-full text-xs font-medium">
+                  Most Popular
+                </span>
+              </div>
+              <CardHeader className="text-center">
+                <CardTitle className="text-xl">Pro</CardTitle>
+                <div className="text-3xl font-bold mt-4">
+                  $79
+                  <span className="text-sm font-normal text-muted-foreground">
+                    /month
+                  </span>
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  For growing businesses
+                </p>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="flex items-center space-x-2">
+                  <Check className="h-4 w-4 text-green-500" />
+                  <span className="text-sm">50 videos per month</span>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Check className="h-4 w-4 text-green-500" />
+                  <span className="text-sm">4K video quality</span>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Check className="h-4 w-4 text-green-500" />
+                  <span className="text-sm">All premium templates</span>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Check className="h-4 w-4 text-green-500" />
+                  <span className="text-sm">Priority support</span>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Check className="h-4 w-4 text-green-500" />
+                  <span className="text-sm">Analytics dashboard</span>
+                </div>
+                <Button className="w-full mt-6" asChild>
+                  <Link href={URLS.AUTH.LOGIN}>Start Pro Plan</Link>
+                </Button>
+              </CardContent>
+            </Card>
+
+            <Card className="relative">
+              <CardHeader className="text-center">
+                <CardTitle className="text-xl">Enterprise</CardTitle>
+                <div className="text-3xl font-bold mt-4">
+                  $199
+                  <span className="text-sm font-normal text-muted-foreground">
+                    /month
+                  </span>
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  For large organizations
+                </p>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="flex items-center space-x-2">
+                  <Check className="h-4 w-4 text-green-500" />
+                  <span className="text-sm">Unlimited videos</span>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Check className="h-4 w-4 text-green-500" />
+                  <span className="text-sm">Custom exports</span>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Check className="h-4 w-4 text-green-500" />
+                  <span className="text-sm">Custom templates</span>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Check className="h-4 w-4 text-green-500" />
+                  <span className="text-sm">Dedicated support</span>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Check className="h-4 w-4 text-green-500" />
+                  <span className="text-sm">Team management</span>
+                </div>
+                <Button className="w-full mt-6" variant="outline" asChild>
+                  <Link href={URLS.AUTH.LOGIN}>Contact Sales</Link>
+                </Button>
+              </CardContent>
+            </Card>
+          </div>
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
+      </div>
     </div>
   );
 }
