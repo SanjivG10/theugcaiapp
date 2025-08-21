@@ -163,3 +163,142 @@ BEGIN
     RETURN new_balance;
 END;
 $$;
+
+-- Create campaigns table
+CREATE TABLE IF NOT EXISTS campaigns (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    business_id UUID REFERENCES businesses(id) ON DELETE CASCADE,
+    user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    description TEXT,
+    status TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'in_progress', 'completed', 'failed', 'cancelled')),
+    campaign_type TEXT NOT NULL DEFAULT 'video' CHECK (campaign_type IN ('video', 'image', 'script')),
+    prompt TEXT,
+    settings JSONB DEFAULT '{}',
+    output_urls TEXT[],
+    thumbnail_url TEXT,
+    credits_used INTEGER DEFAULT 0,
+    estimated_credits INTEGER DEFAULT 0,
+    metadata JSONB DEFAULT '{}',
+    started_at TIMESTAMP WITH TIME ZONE,
+    completed_at TIMESTAMP WITH TIME ZONE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Create indexes for campaigns
+CREATE INDEX IF NOT EXISTS idx_campaigns_business_id ON campaigns(business_id);
+CREATE INDEX IF NOT EXISTS idx_campaigns_user_id ON campaigns(user_id);
+CREATE INDEX IF NOT EXISTS idx_campaigns_status ON campaigns(status);
+CREATE INDEX IF NOT EXISTS idx_campaigns_type ON campaigns(campaign_type);
+CREATE INDEX IF NOT EXISTS idx_campaigns_created_at ON campaigns(created_at);
+
+-- Enable RLS on campaigns table
+ALTER TABLE campaigns ENABLE ROW LEVEL SECURITY;
+
+-- Create RLS policies for campaigns
+CREATE POLICY "Users can view their business campaigns" ON campaigns
+    FOR SELECT USING (
+        business_id IN (
+            SELECT business_id FROM business_users WHERE user_id = auth.uid()
+        )
+    );
+
+CREATE POLICY "Users can create campaigns for their business" ON campaigns
+    FOR INSERT WITH CHECK (
+        business_id IN (
+            SELECT business_id FROM business_users WHERE user_id = auth.uid()
+        )
+        AND user_id = auth.uid()
+    );
+
+CREATE POLICY "Users can update their business campaigns" ON campaigns
+    FOR UPDATE USING (
+        business_id IN (
+            SELECT business_id FROM business_users WHERE user_id = auth.uid()
+        )
+    );
+
+CREATE POLICY "Users can delete their business campaigns" ON campaigns
+    FOR DELETE USING (
+        business_id IN (
+            SELECT business_id FROM business_users WHERE user_id = auth.uid()
+        )
+    );
+
+CREATE POLICY "Service role can manage all campaigns" ON campaigns
+    FOR ALL USING (auth.role() = 'service_role');
+
+-- Function to update campaign status and credits
+CREATE OR REPLACE FUNCTION update_campaign_status(
+    p_campaign_id UUID,
+    p_status TEXT,
+    p_credits_used INTEGER DEFAULT NULL,
+    p_output_urls TEXT[] DEFAULT NULL,
+    p_thumbnail_url TEXT DEFAULT NULL
+) RETURNS VOID
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+    v_business_id UUID;
+    v_current_credits_used INTEGER;
+    v_credit_difference INTEGER;
+BEGIN
+    -- Get campaign details
+    SELECT business_id, credits_used INTO v_business_id, v_current_credits_used
+    FROM campaigns
+    WHERE id = p_campaign_id;
+
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'Campaign not found';
+    END IF;
+
+    -- Calculate credit difference if credits_used is provided
+    IF p_credits_used IS NOT NULL THEN
+        v_credit_difference := p_credits_used - v_current_credits_used;
+        
+        -- Update business credits if there's a difference
+        IF v_credit_difference != 0 THEN
+            PERFORM update_business_credits(
+                v_business_id,
+                -v_credit_difference, -- Negative because we're consuming credits
+                'usage',
+                'Campaign credit adjustment for campaign ' || p_campaign_id,
+                jsonb_build_object('campaign_id', p_campaign_id, 'status_change', p_status)
+            );
+        END IF;
+    END IF;
+
+    -- Update campaign
+    UPDATE campaigns
+    SET 
+        status = p_status,
+        credits_used = COALESCE(p_credits_used, credits_used),
+        output_urls = COALESCE(p_output_urls, output_urls),
+        thumbnail_url = COALESCE(p_thumbnail_url, thumbnail_url),
+        completed_at = CASE WHEN p_status IN ('completed', 'failed', 'cancelled') THEN NOW() ELSE completed_at END,
+        started_at = CASE WHEN p_status = 'in_progress' AND started_at IS NULL THEN NOW() ELSE started_at END,
+        updated_at = NOW()
+    WHERE id = p_campaign_id;
+
+    -- Log credit usage if credits were used
+    IF p_credits_used IS NOT NULL AND v_credit_difference > 0 THEN
+        INSERT INTO credit_usage_logs (
+            business_id,
+            action_type,
+            credits_used,
+            feature_used,
+            campaign_id,
+            user_id
+        ) VALUES (
+            v_business_id,
+            'campaign_generation',
+            v_credit_difference,
+            (SELECT campaign_type FROM campaigns WHERE id = p_campaign_id),
+            p_campaign_id,
+            (SELECT user_id FROM campaigns WHERE id = p_campaign_id)
+        );
+    END IF;
+END;
+$$;

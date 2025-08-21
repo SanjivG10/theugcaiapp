@@ -115,14 +115,22 @@ export class CreditService {
   /**
    * Add credits to business account
    */
-  static async addCredits(
-    businessId: string,
-    amount: number,
-    transactionType: "purchase" | "bonus" | "monthly_allocation" | "refund",
-    description?: string,
-    stripePaymentIntentId?: string,
-    metadata?: Record<string, string>
-  ) {
+  static async addCredits({
+    businessId,
+    amount,
+    transactionType,
+    description,
+    stripePaymentIntentId,
+    metadata,
+  }: {
+    businessId: string;
+    amount: number;
+    transactionType: "purchase" | "bonus" | "monthly_allocation" | "refund";
+    description?: string;
+    stripePaymentIntentId?: string;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    metadata?: Record<string, any>;
+  }) {
     // Get current credits
     const { data: business, error: fetchError } = await supabaseAdmin
       .from("businesses")
@@ -402,14 +410,13 @@ export class CreditService {
       .eq("id", businessId);
 
     // Add monthly credits
-    await this.addCredits(
+    await this.addCredits({
       businessId,
-      plan.monthlyCredits,
-      "monthly_allocation",
-      `Monthly credit allocation for ${plan.name} plan`,
-      undefined,
-      { subscription_id: subscription.id, plan: subscriptionPlan }
-    );
+      amount: plan.monthlyCredits,
+      transactionType: "monthly_allocation",
+      description: `Monthly credit allocation for ${plan.name} plan`,
+      metadata: { subscription_id: subscription.id, plan: subscriptionPlan },
+    });
 
     // Log subscription change
     await supabaseAdmin.from("subscription_history").insert({
@@ -431,17 +438,17 @@ export class CreditService {
       throw new Error("Invalid payment metadata");
     }
 
-    await this.addCredits(
+    await this.addCredits({
       businessId,
-      credits,
-      "purchase",
-      `Purchased ${credits} credits`,
-      paymentIntent.id,
-      {
+      amount: credits,
+      transactionType: "purchase",
+      description: `Purchased ${credits} credits`,
+      stripePaymentIntentId: paymentIntent.id,
+      metadata: {
         amount_paid: paymentIntent.amount.toString(),
         currency: paymentIntent.currency,
-      }
-    );
+      },
+    });
   }
 
   /**

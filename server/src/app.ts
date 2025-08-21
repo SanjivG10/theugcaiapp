@@ -10,6 +10,7 @@ import { authRoutes } from "./routes/auth";
 import { userRoutes } from "./routes/users";
 import { businessRoutes } from "./routes/business";
 import creditRoutes from "./routes/credits";
+import campaignRoutes from "./routes/campaigns";
 import { feedbackRoutes } from "./routes/feedback";
 import { env } from "./config/env";
 
@@ -50,6 +51,7 @@ app.use("/api/auth", authRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/business", businessRoutes);
 app.use("/api/credits", creditRoutes);
+app.use("/api/campaigns", campaignRoutes);
 app.use("/api/feedback", feedbackRoutes);
 
 // 404 handler

@@ -175,20 +175,19 @@ export class WebhookController {
           ];
 
         if (plan) {
-          await CreditService.addCredits(
+          await CreditService.addCredits({
             businessId,
-            plan.monthlyCredits,
-            "monthly_allocation",
-            `Monthly credit allocation for ${
+            amount: plan.monthlyCredits,
+            transactionType: "monthly_allocation",
+            description: `Monthly credit allocation for ${
               plan.name
             } plan - ${new Date().toLocaleDateString()}`,
-            undefined,
-            {
+            metadata: {
               subscription_id: subscription.id,
               invoice_id: invoice.id ?? "",
               plan: subscriptionPlan,
-            }
-          );
+            },
+          });
 
           console.log(`Monthly credits allocated for business: ${businessId}`);
         }
