@@ -9,7 +9,7 @@ import { useBusiness } from "@/hooks/useBusiness";
 import { URLS } from "@/constants/urls";
 import {
   Home,
-  Video,
+  Target,
   FileText,
   BarChart3,
   Settings,
@@ -24,7 +24,7 @@ import { useState, useEffect } from "react";
 
 const navigation = [
   { name: "Dashboard", href: URLS.DASHBOARD.HOME, icon: Home },
-  { name: "Videos", href: URLS.DASHBOARD.VIDEOS, icon: Video },
+  { name: "Campaigns", href: URLS.DASHBOARD.CAMPAIGNS, icon: Target },
   { name: "Templates", href: URLS.DASHBOARD.TEMPLATES, icon: FileText },
   { name: "Analytics", href: URLS.DASHBOARD.ANALYTICS, icon: BarChart3 },
   { name: "Business", href: URLS.BUSINESS.MANAGE, icon: Building2 },

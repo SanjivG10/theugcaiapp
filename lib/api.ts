@@ -45,12 +45,12 @@ export interface ResetPasswordRequest {
 
 export interface DashboardData {
   stats: {
-    total_videos: number;
-    videos_this_month: number;
-    templates_used: number;
-    total_views: number;
+    total_campaigns: number;
+    campaigns_this_month: number;
+    active_campaigns: number;
+    campaigns_this_week: number;
   };
-  recent_videos: Array<{
+  recent_campaigns: Array<{
     id: string;
     title: string;
     created_at: string;
@@ -58,8 +58,8 @@ export interface DashboardData {
   }>;
   usage: {
     current_plan: string;
-    videos_used: number;
-    videos_limit: number;
+    campaigns_used: number;
+    campaigns_limit: number;
   };
 }
 

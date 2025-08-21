@@ -12,7 +12,7 @@ export const URLS = {
   },
   DASHBOARD: {
     HOME: "/dashboard",
-    VIDEOS: "/dashboard/videos",
+    CAMPAIGNS: "/dashboard/campaigns",
     TEMPLATES: "/dashboard/templates",
     ANALYTICS: "/dashboard/analytics",
     SETTINGS: "/dashboard/settings",
@@ -22,10 +22,10 @@ export const URLS = {
     SETUP: "/business/setup",
     MANAGE: "/business/manage",
   },
-  VIDEO: {
-    CREATE: "/video/create",
-    EDIT: (id: string) => `/video/edit/${id}`,
-    VIEW: (id: string) => `/video/${id}`,
+  CAMPAIGN: {
+    CREATE: "/campaign/create",
+    EDIT: (id: string) => `/campaign/edit/${id}`,
+    VIEW: (id: string) => `/campaign/${id}`,
   },
 } as const;
 
