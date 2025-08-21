@@ -51,4 +51,18 @@ export const API_ENDPOINTS = {
     ONBOARDING_SKIP: "/api/business/onboarding/skip",
     ONBOARDING_COMPLETE: "/api/business/onboarding/complete",
   },
+  CREDITS: {
+    GET: "/api/credits",
+    HISTORY: "/api/credits/history",
+    ANALYTICS: "/api/credits/analytics",
+    CHECK: "/api/credits/check",
+    PURCHASE: "/api/credits/purchase",
+    SUBSCRIPTION: "/api/credits/subscription",
+    BILLING_PORTAL: "/api/credits/billing-portal",
+    PLANS: "/api/credits/plans",
+    WEBHOOK: "/api/credits/webhook",
+  },
+  FEEDBACK: {
+    CREATE: "/api/feedback",
+  },
 } as const;

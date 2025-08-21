@@ -9,17 +9,20 @@ import { errorHandler } from "./middleware/errorHandler";
 import { authRoutes } from "./routes/auth";
 import { userRoutes } from "./routes/users";
 import { businessRoutes } from "./routes/business";
+import creditRoutes from "./routes/credits";
+import { feedbackRoutes } from "./routes/feedback";
+import { env } from "./config/env";
 
 // Load environment variables
 
 const app = express();
-const PORT = process.env.PORT || 3001;
+const PORT = env.APP.PORT || 3001;
 
 // Security middleware
 app.use(helmet());
 app.use(
   cors({
-    origin: process.env.FRONTEND_URL || "http://localhost:3000",
+    origin: env.APP.FRONTEND_URL || "http://localhost:3000",
     credentials: true,
   })
 );
@@ -28,6 +31,8 @@ app.use(
 app.use(morgan("combined"));
 
 // Body parsing middleware
+// Note: Stripe webhooks need raw body, so we handle it separately in the route
+app.use("/api/credits/webhook", express.raw({ type: "application/json" }));
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true }));
 
@@ -44,6 +49,8 @@ app.get("/health", (req, res) => {
 app.use("/api/auth", authRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/business", businessRoutes);
+app.use("/api/credits", creditRoutes);
+app.use("/api/feedback", feedbackRoutes);
 
 // 404 handler
 app.use("*everything", (req, res) => {

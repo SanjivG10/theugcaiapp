@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import React, { useState, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -13,8 +13,13 @@ import {
 } from "@/components/ui/select";
 import { useCampaign } from "@/contexts/CampaignContext";
 import { Loader2, RefreshCw, FileText, Clock, Hash, Edit3, Sparkles } from "lucide-react";
+import { CreditDisplay } from "@/components/ui/credit-display";
+import { CreditPurchaseModal } from "@/components/ui/credit-purchase-modal";
 import Image from "next/image";
 import toast from "react-hot-toast";
+import { useState as useCreditsState } from "react";
+import { API_ENDPOINTS } from "@/constants/urls";
+import axios from "axios";
 
 interface ScriptGenerationProps {
   onNext: () => void;
@@ -33,9 +38,46 @@ export function ScriptGeneration({ onNext, onPrev }: ScriptGenerationProps) {
     length: state.numberOfScenes.toString(),
     style: "product-showcase",
   });
+  
+  // Credit system states
+  const [currentCredits, setCurrentCredits] = useCreditsState(0);
+  const [subscriptionPlan, setSubscriptionPlan] = useCreditsState("free");
+  const [showCreditModal, setShowCreditModal] = useCreditsState(false);
+  
+  // Fetch current credits on component mount
+  React.useEffect(() => {
+    const fetchCredits = async () => {
+      try {
+        const response = await axios.get(API_ENDPOINTS.CREDITS.GET);
+        if (response.data.success) {
+          setCurrentCredits(response.data.data.credits);
+          setSubscriptionPlan(response.data.data.subscription_plan);
+        }
+      } catch (error) {
+        console.error("Failed to fetch credits:", error);
+      }
+    };
+    fetchCredits();
+  }, []);
 
 
   const generateScript = useCallback(async () => {
+    // Check credits before generating
+    try {
+      const creditCheckResponse = await axios.post(API_ENDPOINTS.CREDITS.CHECK, {
+        action: "VIDEO_SCRIPT_GENERATION"
+      });
+      
+      if (!creditCheckResponse.data.data.hasSufficientCredits) {
+        setShowCreditModal(true);
+        return;
+      }
+    } catch (error) {
+      console.error("Failed to check credits:", error);
+      toast.error("Failed to check credits");
+      return;
+    }
+
     setIsGenerating(true);
     try {
       // Simulate API call to generate script based on user settings
@@ -61,6 +103,23 @@ export function ScriptGeneration({ onNext, onPrev }: ScriptGenerationProps) {
 
       setScript(generatedScript);
       dispatch({ type: "SET_SCRIPT", payload: generatedScript });
+      
+      // Consume credits for script generation
+      try {
+        await axios.post("/api/credits/consume", {
+          action: "VIDEO_SCRIPT_GENERATION",
+          metadata: {
+            campaign_id: state.campaignId,
+            scenes: state.numberOfScenes,
+            tone: scriptSettings.tone,
+            style: scriptSettings.style
+          }
+        });
+        setCurrentCredits(prev => prev - 1); // Update local state
+      } catch (error) {
+        console.error("Failed to consume credits:", error);
+      }
+      
       toast.success(`Script generated with ${state.numberOfScenes} scenes!`);
     } catch (error) {
       toast.error("Failed to generate script. Please try again.");
@@ -239,19 +298,26 @@ export function ScriptGeneration({ onNext, onPrev }: ScriptGenerationProps) {
                   <span>{scriptMode === 'ai' ? 'AI Generated Script' : 'Custom Script'}</span>
                 </CardTitle>
                 {scriptMode === 'ai' && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={generateScript}
-                    disabled={isGenerating}
-                  >
-                    {isGenerating ? (
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    ) : (
-                      <RefreshCw className="w-4 h-4 mr-2" />
-                    )}
-                    {isGenerating ? "Generating..." : "Generate Script"}
-                  </Button>
+                  <div className="flex items-center gap-3">
+                    <CreditDisplay
+                      action="VIDEO_SCRIPT_GENERATION"
+                      currentCredits={currentCredits}
+                      onPurchaseClick={() => setShowCreditModal(true)}
+                    />
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={generateScript}
+                      disabled={isGenerating || currentCredits < 1}
+                    >
+                      {isGenerating ? (
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      ) : (
+                        <RefreshCw className="w-4 h-4 mr-2" />
+                      )}
+                      {isGenerating ? "Generating..." : "Generate Script"}
+                    </Button>
+                  </div>
                 )}
               </div>
             </CardHeader>
@@ -381,6 +447,29 @@ export function ScriptGeneration({ onNext, onPrev }: ScriptGenerationProps) {
           Next: Generate Images
         </Button>
       </div>
+
+      {/* Credit Purchase Modal */}
+      <CreditPurchaseModal
+        isOpen={showCreditModal}
+        onClose={() => setShowCreditModal(false)}
+        currentCredits={currentCredits}
+        subscriptionPlan={subscriptionPlan}
+        onPurchaseSuccess={() => {
+          // Refresh credits after purchase
+          const fetchCredits = async () => {
+            try {
+              const response = await axios.get(API_ENDPOINTS.CREDITS.GET);
+              if (response.data.success) {
+                setCurrentCredits(response.data.data.credits);
+              }
+            } catch (error) {
+              console.error("Failed to fetch credits:", error);
+            }
+          };
+          fetchCredits();
+          setShowCreditModal(false);
+        }}
+      />
     </div>
   );
 }

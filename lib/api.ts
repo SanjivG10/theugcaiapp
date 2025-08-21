@@ -87,6 +87,19 @@ export interface UpdateSubscriptionRequest {
   auto_renew?: boolean;
 }
 
+export interface FeedbackData {
+  name: string;
+  email: string;
+  subject: string;
+  message: string;
+  feedback_type:
+    | "bug_report"
+    | "feature_request"
+    | "general_feedback"
+    | "support_request";
+  priority: "low" | "medium" | "high" | "urgent";
+}
+
 class ApiClient {
   private client: AxiosInstance;
 
@@ -294,6 +307,14 @@ class ApiClient {
   // Health check
   async health(): Promise<ApiResponse<{ status: string; timestamp: string }>> {
     const response = await this.client.get("/health");
+    return response.data;
+  }
+
+  // Feedback endpoints
+  async submitFeedback(
+    data: FeedbackData
+  ): Promise<ApiResponse<{ id: string; status: string }>> {
+    const response = await this.client.post("/api/feedback", data);
     return response.data;
   }
 }

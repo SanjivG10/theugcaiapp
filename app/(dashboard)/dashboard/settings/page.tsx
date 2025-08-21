@@ -1,8 +1,10 @@
 "use client";
 
+import React, { useState, useEffect } from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 import { Header } from "@/components/dashboard/header";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
@@ -10,27 +12,25 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { SUBSCRIPTION_PLANS } from "@/constants/credits";
-import { API_ENDPOINTS } from "@/constants/urls";
+import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/contexts/AuthContext";
 import { useBusiness } from "@/hooks/useBusiness";
-import { zodResolver } from "@hookform/resolvers/zod";
-import axios from "axios";
+import { API_ENDPOINTS } from "@/constants/urls";
+import { SUBSCRIPTION_PLANS } from "@/constants/credits";
 import {
-  Building2,
-  Calendar,
-  CreditCard,
-  Crown,
-  Save,
   User,
+  Save,
+  Building2,
+  CreditCard,
+  Calendar,
+  Crown,
   Zap,
 } from "lucide-react";
-import { useEffect, useState } from "react";
-import { useForm } from "react-hook-form";
+import axios from "axios";
 import toast from "react-hot-toast";
-import { z } from "zod";
 
 const combinedSchema = z.object({
   // Personal Information
@@ -47,16 +47,14 @@ const combinedSchema = z.object({
 
 type CombinedFormData = z.infer<typeof combinedSchema>;
 
-export default function ProfilePage() {
+export default function SettingsPage() {
   const { user, updateProfile } = useAuth();
   const { business, getBusiness, updateBusiness } = useBusiness();
   const [isUpdating, setIsUpdating] = useState(false);
   const [currentCredits, setCurrentCredits] = useState(0);
   const [subscriptionPlan, setSubscriptionPlan] = useState("free");
   const [subscriptionStatus, setSubscriptionStatus] = useState("active");
-  const [subscriptionExpiry, setSubscriptionExpiry] = useState<string | null>(
-    null
-  );
+  const [subscriptionExpiry, setSubscriptionExpiry] = useState<string | null>(null);
 
   const {
     register,
@@ -79,9 +77,10 @@ export default function ProfilePage() {
         last_name: user.last_name || "",
         email: user.email,
         phone: user.phone || "",
-        business_name: business.business_name || "",
+        business_name: business.name || "",
         industry: business.industry || "",
-        website: business.website_url || "",
+        website: business.website || "",
+        description: business.description || "",
       });
     }
   }, [user, business, reset]);
@@ -103,7 +102,7 @@ export default function ProfilePage() {
   const onSubmit = async (data: CombinedFormData) => {
     try {
       setIsUpdating(true);
-
+      
       // Update profile data
       const profileData = {
         first_name: data.first_name,
@@ -111,7 +110,7 @@ export default function ProfilePage() {
         email: data.email,
         phone: data.phone,
       };
-
+      
       // Update business data
       const businessData = {
         name: data.business_name,
@@ -123,14 +122,12 @@ export default function ProfilePage() {
       // Update both profile and business
       await Promise.all([
         updateProfile(profileData),
-        updateBusiness(businessData),
+        updateBusiness(businessData)
       ]);
-
-      toast.success("Profile updated successfully!");
-    } catch (error) {
-      toast.error(
-        error instanceof Error ? error.message : "Failed to update profile"
-      );
+      
+      toast.success("Settings updated successfully!");
+    } catch (error: any) {
+      toast.error(error.message || "Failed to update settings");
     } finally {
       setIsUpdating(false);
     }
@@ -138,7 +135,7 @@ export default function ProfilePage() {
 
   const handleManageBilling = async () => {
     try {
-      const returnUrl = `${window.location.origin}/dashboard/profile`;
+      const returnUrl = `${window.location.origin}/dashboard/settings`;
       const response = await axios.post(API_ENDPOINTS.CREDITS.BILLING_PORTAL, {
         returnUrl,
       });
@@ -154,9 +151,7 @@ export default function ProfilePage() {
     }
   };
 
-  const currentPlan =
-    SUBSCRIPTION_PLANS[subscriptionPlan as keyof typeof SUBSCRIPTION_PLANS] ||
-    SUBSCRIPTION_PLANS.FREE;
+  const currentPlan = SUBSCRIPTION_PLANS[subscriptionPlan as keyof typeof SUBSCRIPTION_PLANS] || SUBSCRIPTION_PLANS.FREE;
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -174,13 +169,13 @@ export default function ProfilePage() {
   return (
     <div className="space-y-6">
       <Header
-        title="Profile"
+        title="Settings"
         description="Manage your account and business information"
       />
 
       <div className="p-6 max-w-6xl space-y-6">
         <div className="grid gap-6 lg:grid-cols-3">
-          {/* Combined Profile & Business Form */}
+          {/* Combined Settings Form */}
           <Card className="lg:col-span-2">
             <CardHeader>
               <CardTitle className="flex items-center space-x-2">
@@ -197,20 +192,16 @@ export default function ProfilePage() {
                 <div className="space-y-4">
                   <div className="flex items-center space-x-2 pb-2 border-b">
                     <User className="h-4 w-4 text-muted-foreground" />
-                    <h3 className="text-sm font-medium text-muted-foreground">
-                      Personal Information
-                    </h3>
+                    <h3 className="text-sm font-medium text-muted-foreground">Personal Information</h3>
                   </div>
-
+                  
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label htmlFor="first_name">First Name</Label>
                       <Input
                         id="first_name"
                         {...register("first_name")}
-                        className={
-                          errors.first_name ? "border-destructive" : ""
-                        }
+                        className={errors.first_name ? "border-destructive" : ""}
                       />
                       {errors.first_name && (
                         <p className="text-destructive text-sm">
@@ -267,20 +258,16 @@ export default function ProfilePage() {
                 <div className="space-y-4">
                   <div className="flex items-center space-x-2 pb-2 border-b">
                     <Building2 className="h-4 w-4 text-muted-foreground" />
-                    <h3 className="text-sm font-medium text-muted-foreground">
-                      Business Information
-                    </h3>
+                    <h3 className="text-sm font-medium text-muted-foreground">Business Information</h3>
                   </div>
-
+                  
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label htmlFor="business_name">Business Name</Label>
                       <Input
                         id="business_name"
                         {...register("business_name")}
-                        className={
-                          errors.business_name ? "border-destructive" : ""
-                        }
+                        className={errors.business_name ? "border-destructive" : ""}
                       />
                       {errors.business_name && (
                         <p className="text-destructive text-sm">
@@ -306,6 +293,15 @@ export default function ProfilePage() {
                       type="url"
                       placeholder="https://yourwebsite.com"
                       {...register("website")}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="description">Business Description</Label>
+                    <Input
+                      id="description"
+                      placeholder="Brief description of your business"
+                      {...register("description")}
                     />
                   </div>
                 </div>
@@ -337,9 +333,7 @@ export default function ProfilePage() {
 
               <div className="flex items-center justify-between">
                 <span className="text-sm font-medium">Status</span>
-                <Badge
-                  className={`text-sm ${getStatusColor(subscriptionStatus)}`}
-                >
+                <Badge className={`text-sm ${getStatusColor(subscriptionStatus)}`}>
                   {subscriptionStatus}
                 </Badge>
               </div>
@@ -363,9 +357,7 @@ export default function ProfilePage() {
 
               <div className="text-sm text-muted-foreground">
                 <div>• {currentPlan.monthlyCredits} credits/month</div>
-                <div>
-                  • ${currentPlan.creditPrice.toFixed(3)} per additional credit
-                </div>
+                <div>• ${currentPlan.creditPrice.toFixed(3)} per additional credit</div>
               </div>
 
               <Button

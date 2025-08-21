@@ -1,35 +1,31 @@
 "use client";
 
-import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
-import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { URLS } from "@/constants/urls";
 import { useAuth } from "@/contexts/AuthContext";
 import { useBusiness } from "@/hooks/useBusiness";
-import { URLS } from "@/constants/urls";
+import { cn } from "@/lib/utils";
 import {
-  Home,
-  Target,
-  FileText,
+  AlertCircle,
   BarChart3,
-  Settings,
-  User,
+  CheckCircle2,
+  Home,
   LogOut,
   Menu,
-  Building2,
-  AlertCircle,
-  CheckCircle2,
+  MessageSquare,
+  Target,
+  User,
 } from "lucide-react";
-import { useState, useEffect } from "react";
+import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
 
 const navigation = [
   { name: "Dashboard", href: URLS.DASHBOARD.HOME, icon: Home },
   { name: "Campaigns", href: URLS.DASHBOARD.CAMPAIGNS, icon: Target },
-  { name: "Templates", href: URLS.DASHBOARD.TEMPLATES, icon: FileText },
   { name: "Analytics", href: URLS.DASHBOARD.ANALYTICS, icon: BarChart3 },
-  { name: "Business", href: URLS.BUSINESS.MANAGE, icon: Building2 },
-  { name: "Settings", href: URLS.DASHBOARD.SETTINGS, icon: Settings },
   { name: "Profile", href: URLS.DASHBOARD.PROFILE, icon: User },
+  { name: "Feedback", href: "/feedback", icon: MessageSquare },
 ];
 
 interface SidebarProps {
@@ -55,8 +51,8 @@ export function Sidebar({ className }: SidebarProps) {
   return (
     <div
       className={cn(
-        "bg-card border-r border-border flex flex-col h-full",
-        isCollapsed ? "w-16" : "w-64",
+        "bg-card border-r border-border flex flex-col h-full transition-all duration-300 ease-in-out",
+        isCollapsed ? "w-20" : "w-64",
         className
       )}
     >
@@ -70,7 +66,11 @@ export function Sidebar({ className }: SidebarProps) {
             variant="ghost"
             size="sm"
             onClick={() => setIsCollapsed(!isCollapsed)}
-            className="h-8 w-8 p-0"
+            className={cn(
+              "h-8 w-8 p-0 hover:bg-accent transition-colors",
+              isCollapsed ? "mx-auto" : ""
+            )}
+            title={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
           >
             <Menu className="h-4 w-4" />
           </Button>
@@ -80,7 +80,12 @@ export function Sidebar({ className }: SidebarProps) {
       {/* User Info */}
       <div className="p-4 border-b border-border">
         <div className="flex items-center space-x-3">
-          <div className="w-8 h-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-sm font-medium">
+          <div
+            className={cn(
+              "rounded-full bg-primary text-primary-foreground flex items-center justify-center text-sm font-medium flex-shrink-0",
+              isCollapsed ? "w-10 h-10 text-base" : "w-8 h-8"
+            )}
+          >
             {user?.first_name?.[0]?.toUpperCase() ||
               user?.email?.[0]?.toUpperCase()}
           </div>
@@ -108,7 +113,7 @@ export function Sidebar({ className }: SidebarProps) {
 
       {/* Navigation */}
       <nav className="flex-1 p-4">
-        <ul className="space-y-2">
+        <ul className="space-y-3">
           {navigation.map((item) => {
             const Icon = item.icon;
             const isActive = pathname === item.href;
@@ -118,14 +123,20 @@ export function Sidebar({ className }: SidebarProps) {
                 <Link
                   href={item.href}
                   className={cn(
-                    "flex items-center space-x-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors",
+                    "flex items-center space-x-3 px-3 py-3 rounded-xl text-sm font-medium transition-all duration-200 hover:scale-105",
                     isActive
-                      ? "bg-primary text-primary-foreground"
-                      : "text-muted-foreground hover:text-foreground hover:bg-accent",
-                    isCollapsed ? "justify-center" : ""
+                      ? "bg-primary text-primary-foreground shadow-md"
+                      : "text-muted-foreground hover:text-foreground hover:bg-accent/50",
+                    isCollapsed ? "justify-center px-2" : ""
                   )}
+                  title={isCollapsed ? item.name : ""}
                 >
-                  <Icon className="h-5 w-5" />
+                  <Icon
+                    className={cn(
+                      "transition-all duration-200",
+                      isCollapsed ? "h-6 w-6" : "h-5 w-5"
+                    )}
+                  />
                   {!isCollapsed && <span>{item.name}</span>}
                 </Link>
               </li>
@@ -140,11 +151,17 @@ export function Sidebar({ className }: SidebarProps) {
           variant="ghost"
           onClick={handleLogout}
           className={cn(
-            "w-full justify-start space-x-3 text-muted-foreground hover:text-foreground",
-            isCollapsed ? "justify-center" : ""
+            "w-full justify-start space-x-3 text-muted-foreground hover:text-foreground hover:bg-accent/50 transition-all duration-200 hover:scale-105",
+            isCollapsed ? "justify-center px-2" : ""
           )}
+          title={isCollapsed ? "Sign out" : ""}
         >
-          <LogOut className="h-5 w-5" />
+          <LogOut
+            className={cn(
+              "transition-all duration-200",
+              isCollapsed ? "h-6 w-6" : "h-5 w-5"
+            )}
+          />
           {!isCollapsed && <span>Sign out</span>}
         </Button>
       </div>

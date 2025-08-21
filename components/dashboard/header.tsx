@@ -1,8 +1,13 @@
 "use client";
 
+import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
+import { CreditBalance } from '@/components/ui/credit-display';
+import { CreditPurchaseModal } from '@/components/ui/credit-purchase-modal';
+import { API_ENDPOINTS } from '@/constants/urls';
 import { Bell, Plus } from 'lucide-react';
+import axios from 'axios';
 
 interface HeaderProps {
   title: string;
@@ -12,6 +17,25 @@ interface HeaderProps {
 
 export function Header({ title, description, action }: HeaderProps) {
   const { user } = useAuth();
+  const [currentCredits, setCurrentCredits] = useState(0);
+  const [subscriptionPlan, setSubscriptionPlan] = useState("free");
+  const [showCreditModal, setShowCreditModal] = useState(false);
+  
+  // Fetch current credits
+  useEffect(() => {
+    const fetchCredits = async () => {
+      try {
+        const response = await axios.get(API_ENDPOINTS.CREDITS.GET);
+        if (response.data.success) {
+          setCurrentCredits(response.data.data.credits);
+          setSubscriptionPlan(response.data.data.subscription_plan);
+        }
+      } catch (error) {
+        console.error("Failed to fetch credits:", error);
+      }
+    };
+    fetchCredits();
+  }, []);
 
   return (
     <header className="bg-card border-b border-border">
@@ -27,6 +51,11 @@ export function Header({ title, description, action }: HeaderProps) {
           <div className="flex items-center space-x-4">
             {action}
             
+            <CreditBalance
+              currentCredits={currentCredits}
+              onPurchaseClick={() => setShowCreditModal(true)}
+            />
+            
             <Button variant="outline" size="sm">
               <Bell className="h-4 w-4" />
             </Button>
@@ -39,6 +68,29 @@ export function Header({ title, description, action }: HeaderProps) {
           </div>
         </div>
       </div>
+      
+      {/* Credit Purchase Modal */}
+      <CreditPurchaseModal
+        isOpen={showCreditModal}
+        onClose={() => setShowCreditModal(false)}
+        currentCredits={currentCredits}
+        subscriptionPlan={subscriptionPlan}
+        onPurchaseSuccess={() => {
+          // Refresh credits after purchase
+          const fetchCredits = async () => {
+            try {
+              const response = await axios.get(API_ENDPOINTS.CREDITS.GET);
+              if (response.data.success) {
+                setCurrentCredits(response.data.data.credits);
+              }
+            } catch (error) {
+              console.error("Failed to fetch credits:", error);
+            }
+          };
+          fetchCredits();
+          setShowCreditModal(false);
+        }}
+      />
     </header>
   );
 }

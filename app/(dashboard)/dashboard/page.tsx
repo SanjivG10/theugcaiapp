@@ -14,14 +14,13 @@ import { useBusiness } from "@/hooks/useBusiness";
 import { api } from "@/lib/api";
 import {
   BarChart3,
-  FileText,
-  Plus,
-  TrendingUp,
   Calendar,
+  Link,
+  Plus,
+  Target,
+  TrendingUp,
   Video,
   Zap,
-  Target,
-  Link,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -262,45 +261,6 @@ export default function DashboardPage() {
             </CardContent>
           </Card>
         </div>
-
-        {/* Quick Actions */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Quick Actions</CardTitle>
-            <CardDescription>Common tasks to get you started</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="grid gap-4 md:grid-cols-3">
-              <Link href={URLS.CAMPAIGN.CREATE}>
-                <Button variant="outline" className="justify-start h-auto p-4">
-                  <div className="flex items-center space-x-3">
-                    <Plus className="h-5 w-5" />
-                    <div className="text-left">
-                      <div className="font-medium">Create Campaign</div>
-                      <div className="text-sm text-muted-foreground">
-                        Start a new AI campaign
-                      </div>
-                    </div>
-                  </div>
-                </Button>
-              </Link>
-
-              <Link href={URLS.CAMPAIGN.VIEW("1")}>
-                <Button variant="outline" className="justify-start h-auto p-4">
-                  <div className="flex items-center space-x-3">
-                    <BarChart3 className="h-5 w-5" />
-                    <div className="text-left">
-                      <div className="font-medium">View Analytics</div>
-                      <div className="text-sm text-muted-foreground">
-                        Check campaign performance
-                      </div>
-                    </div>
-                  </div>
-                </Button>
-              </Link>
-            </div>
-          </CardContent>
-        </Card>
       </div>
     </div>
   );

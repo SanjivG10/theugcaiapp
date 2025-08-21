@@ -1,5 +1,6 @@
 "use client";
 
+import React, { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -12,10 +13,14 @@ import {
   RefreshCw,
   Wand2,
   Edit3,
+  AlertTriangle,
 } from "lucide-react";
+import { CreditDisplay } from "@/components/ui/credit-display";
+import { CreditPurchaseModal } from "@/components/ui/credit-purchase-modal";
+import { API_ENDPOINTS } from "@/constants/urls";
 import Image from "next/image";
-import { useState } from "react";
 import toast from "react-hot-toast";
+import axios from "axios";
 
 interface ImageGenerationProps {
   onNext: () => void;
@@ -27,37 +32,103 @@ interface ImageGenerationProps {
 interface SceneImageGeneration {
   sceneNumber: number;
   scriptText: string;
-  selectedProductImage: string;
+  selectedProductImages: string[];
   imagePrompt: string;
   isGenerating: boolean;
 }
 
 export function ImageGeneration({ onNext, onPrev }: ImageGenerationProps) {
   const { state, dispatch } = useCampaign();
-  const scriptParagraphs = state.script.split('\n\n').filter(p => p.trim());
+  const scriptParagraphs = state.script.split("\n\n").filter((p) => p.trim());
   const totalScenes = state.numberOfScenes;
   
+  // Credit system states
+  const [currentCredits, setCurrentCredits] = useState(0);
+  const [subscriptionPlan, setSubscriptionPlan] = useState("free");
+  const [showCreditModal, setShowCreditModal] = useState(false);
+  
+  // Fetch current credits on component mount
+  React.useEffect(() => {
+    const fetchCredits = async () => {
+      try {
+        const response = await axios.get(API_ENDPOINTS.CREDITS.GET);
+        if (response.data.success) {
+          setCurrentCredits(response.data.data.credits);
+          setSubscriptionPlan(response.data.data.subscription_plan);
+        }
+      } catch (error) {
+        console.error("Failed to fetch credits:", error);
+      }
+    };
+    fetchCredits();
+  }, []);
+
   // Initialize scene generation data
-  const [sceneGenerations, setSceneGenerations] = useState<SceneImageGeneration[]>(() => {
+  const [sceneGenerations, setSceneGenerations] = useState<
+    SceneImageGeneration[]
+  >(() => {
     return Array.from({ length: totalScenes }, (_, index) => ({
       sceneNumber: index + 1,
-      scriptText: scriptParagraphs[index] || '',
-      selectedProductImage: '',
-      imagePrompt: '',
+      scriptText: scriptParagraphs[index] || "",
+      selectedProductImages: [], // Initialize as empty array
+      imagePrompt: "",
       isGenerating: false,
     }));
   });
 
-  const updateSceneGeneration = (sceneNumber: number, updates: Partial<SceneImageGeneration>) => {
-    setSceneGenerations(prev => prev.map(scene => 
-      scene.sceneNumber === sceneNumber ? { ...scene, ...updates } : scene
-    ));
+  const updateSceneGeneration = (
+    sceneNumber: number,
+    updates: Partial<SceneImageGeneration>
+  ) => {
+    setSceneGenerations((prev) =>
+      prev.map((scene) =>
+        scene.sceneNumber === sceneNumber ? { ...scene, ...updates } : scene
+      )
+    );
+  };
+
+  const toggleProductImage = (sceneNumber: number, imageId: string) => {
+    const scene = sceneGenerations.find((s) => s.sceneNumber === sceneNumber);
+    if (!scene) return;
+
+    const isSelected = scene.selectedProductImages.includes(imageId);
+    let newSelectedImages: string[];
+
+    if (isSelected) {
+      // Remove image if already selected
+      newSelectedImages = scene.selectedProductImages.filter(
+        (id) => id !== imageId
+      );
+    } else {
+      // Add image if not selected
+      newSelectedImages = [...scene.selectedProductImages, imageId];
+    }
+
+    updateSceneGeneration(sceneNumber, {
+      selectedProductImages: newSelectedImages,
+    });
   };
 
   const generateImage = async (sceneNumber: number) => {
-    const scene = sceneGenerations.find(s => s.sceneNumber === sceneNumber);
-    if (!scene || !scene.selectedProductImage) {
-      toast.error("Please select a product image for this scene");
+    const scene = sceneGenerations.find((s) => s.sceneNumber === sceneNumber);
+    if (!scene || scene.selectedProductImages.length === 0) {
+      toast.error("Please select at least one product image for this scene");
+      return;
+    }
+
+    // Check credits before generating
+    try {
+      const creditCheckResponse = await axios.post(API_ENDPOINTS.CREDITS.CHECK, {
+        action: "IMAGE_GENERATION"
+      });
+      
+      if (!creditCheckResponse.data.data.hasSufficientCredits) {
+        setShowCreditModal(true);
+        return;
+      }
+    } catch (error) {
+      console.error("Failed to check credits:", error);
+      toast.error("Failed to check credits");
       return;
     }
 
@@ -72,11 +143,28 @@ export function ImageGeneration({ onNext, onPrev }: ImageGenerationProps) {
         id: Math.random().toString(36).substring(2, 9),
         url: `/api/placeholder/400/400?scene=${sceneNumber}&t=${Date.now()}`,
         sceneNumber,
-        prompt: scene.imagePrompt || `${scene.scriptText} featuring the product`,
+        prompt:
+          scene.imagePrompt || `${scene.scriptText} featuring the product`,
         approved: false,
       };
 
       dispatch({ type: "ADD_GENERATED_IMAGE", payload: generatedImage });
+      
+      // Consume credits for image generation
+      try {
+        await axios.post("/api/credits/consume", {
+          action: "IMAGE_GENERATION",
+          metadata: {
+            campaign_id: state.campaignId,
+            scene_number: sceneNumber,
+            prompt: scene.imagePrompt || `${scene.scriptText} featuring the product`
+          }
+        });
+        setCurrentCredits(prev => prev - 2); // Update local state (2 credits for image generation)
+      } catch (error) {
+        console.error("Failed to consume credits:", error);
+      }
+      
       toast.success(`Scene ${sceneNumber} image generated successfully!`);
     } catch (error) {
       toast.error("Failed to generate image. Please try again.");
@@ -110,7 +198,9 @@ export function ImageGeneration({ onNext, onPrev }: ImageGenerationProps) {
       await new Promise((resolve) => setTimeout(resolve, 3000));
 
       // Update with new generated image
-      const newUrl = `/api/placeholder/400/400?scene=${image.sceneNumber}&t=${Date.now()}`;
+      const newUrl = `/api/placeholder/400/400?scene=${
+        image.sceneNumber
+      }&t=${Date.now()}`;
       dispatch({
         type: "UPDATE_GENERATED_IMAGE",
         payload: { id: imageId, updates: { url: newUrl, approved: false } },
@@ -129,7 +219,12 @@ export function ImageGeneration({ onNext, onPrev }: ImageGenerationProps) {
 
   const handleNext = () => {
     if (!canProceed) {
-      toast.error(`Please generate and approve at least ${Math.min(3, totalScenes)} images to continue`);
+      toast.error(
+        `Please generate and approve at least ${Math.min(
+          3,
+          totalScenes
+        )} images to continue`
+      );
       return;
     }
     onNext();
@@ -142,23 +237,28 @@ export function ImageGeneration({ onNext, onPrev }: ImageGenerationProps) {
           Generate Scene Images
         </h2>
         <p className="text-muted-foreground text-sm">
-          Generate images for each scene of your video. Each scene is based on your script and will use one of your product images.
+          Generate images for each scene of your video. Each scene is based on
+          your script and will use one of your product images.
         </p>
       </div>
 
       {/* Scene Generation Cards */}
       <div className="grid gap-6">
         {sceneGenerations.map((scene, index) => {
-          const existingImage = state.generatedImages.find(img => img.sceneNumber === scene.sceneNumber);
+          const existingImage = state.generatedImages.find(
+            (img) => img.sceneNumber === scene.sceneNumber
+          );
           const isGenerating = scene.isGenerating;
-          
+
           return (
             <Card key={scene.sceneNumber} className="overflow-hidden">
               <CardHeader>
                 <div className="flex items-center justify-between">
                   <CardTitle className="flex items-center space-x-2">
                     <Badge variant="outline">Scene {scene.sceneNumber}</Badge>
-                    <span className="text-base">Scene {scene.sceneNumber} Image Generation</span>
+                    <span className="text-base">
+                      Scene {scene.sceneNumber} Image Generation
+                    </span>
                   </CardTitle>
                   {existingImage?.approved && (
                     <div className="flex items-center space-x-1 text-green-600">
@@ -173,24 +273,51 @@ export function ImageGeneration({ onNext, onPrev }: ImageGenerationProps) {
                   {/* Left: Script and Settings */}
                   <div className="space-y-4">
                     <div>
-                      <label className="text-sm font-medium mb-2 block">Script for this scene:</label>
+                      <label className="text-sm font-medium mb-2 block">
+                        Script for this scene:
+                      </label>
                       <div className="p-3 bg-muted rounded-lg text-sm">
-                        {scene.scriptText || 'No script content for this scene'}
+                        {scene.scriptText || "No script content for this scene"}
                       </div>
                     </div>
-                    
+
                     <div>
-                      <label className="text-sm font-medium mb-2 block">Product Image:</label>
+                      <label className="text-sm font-medium mb-2 block">
+                        Product Image:
+                      </label>
+
+                      {/* Warning banner for multiple image selection */}
+                      {scene.selectedProductImages.length > 1 && (
+                        <div className="mb-3 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                          <div className="flex items-start space-x-2">
+                            <AlertTriangle className="w-5 h-5 text-amber-600 mt-0.5 flex-shrink-0" />
+                            <div className="text-sm">
+                              <p className="font-medium text-amber-800 mb-1">
+                                Multiple Images Selected
+                              </p>
+                              <p className="text-amber-700">
+                                Using multiple product images in a single scene
+                                may result in lower quality or inconsistent
+                                results. Consider using fewer images for better
+                                outcomes.
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
                       <div className="grid grid-cols-3 gap-2">
                         {state.productImages.map((image) => (
                           <div
                             key={image.id}
                             className={`relative aspect-square rounded-lg overflow-hidden cursor-pointer border-2 transition-colors ${
-                              scene.selectedProductImage === image.id
+                              scene.selectedProductImages.includes(image.id)
                                 ? "border-primary ring-2 ring-primary/20"
                                 : "border-border hover:border-primary/50"
                             }`}
-                            onClick={() => updateSceneGeneration(scene.sceneNumber, { selectedProductImage: image.id })}
+                            onClick={() =>
+                              toggleProductImage(scene.sceneNumber, image.id)
+                            }
                           >
                             <Image
                               src={image.url}
@@ -198,7 +325,7 @@ export function ImageGeneration({ onNext, onPrev }: ImageGenerationProps) {
                               fill
                               className="object-cover"
                             />
-                            {scene.selectedProductImage === image.id && (
+                            {scene.selectedProductImages.includes(image.id) && (
                               <div className="absolute inset-0 bg-primary/20 flex items-center justify-center">
                                 <Check className="w-5 h-5 text-primary" />
                               </div>
@@ -206,8 +333,19 @@ export function ImageGeneration({ onNext, onPrev }: ImageGenerationProps) {
                           </div>
                         ))}
                       </div>
+
+                      {/* Selection count indicator */}
+                      {scene.selectedProductImages.length > 0 && (
+                        <p className="text-sm text-muted-foreground mt-2">
+                          {scene.selectedProductImages.length} image
+                          {scene.selectedProductImages.length !== 1
+                            ? "s"
+                            : ""}{" "}
+                          selected
+                        </p>
+                      )}
                     </div>
-                    
+
                     <div>
                       <label className="text-sm font-medium mb-2 block">
                         Image Description (optional):
@@ -215,34 +353,51 @@ export function ImageGeneration({ onNext, onPrev }: ImageGenerationProps) {
                       <Textarea
                         placeholder="Describe how you want this scene to look..."
                         value={scene.imagePrompt}
-                        onChange={(e) => updateSceneGeneration(scene.sceneNumber, { imagePrompt: e.target.value })}
+                        onChange={(e) =>
+                          updateSceneGeneration(scene.sceneNumber, {
+                            imagePrompt: e.target.value,
+                          })
+                        }
                         className="min-h-[80px] resize-none"
                       />
                     </div>
-                    
-                    <Button
-                      onClick={() => generateImage(scene.sceneNumber)}
-                      disabled={!scene.selectedProductImage || isGenerating}
-                      className="w-full"
-                    >
-                      {isGenerating ? (
-                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      ) : (
-                        <Wand2 className="w-4 h-4 mr-2" />
-                      )}
-                      {existingImage ? 'Regenerate Image' : 'Generate Image'}
-                    </Button>
+
+                    <div className="space-y-3">
+                      <CreditDisplay
+                        action="IMAGE_GENERATION"
+                        currentCredits={currentCredits}
+                        onPurchaseClick={() => setShowCreditModal(true)}
+                      />
+                      <Button
+                        onClick={() => generateImage(scene.sceneNumber)}
+                        disabled={
+                          scene.selectedProductImages.length === 0 || isGenerating || currentCredits < 2
+                        }
+                        className="w-full"
+                      >
+                        {isGenerating ? (
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        ) : (
+                          <Wand2 className="w-4 h-4 mr-2" />
+                        )}
+                        {existingImage ? "Regenerate Image" : "Generate Image"}
+                      </Button>
+                    </div>
                   </div>
-                  
+
                   {/* Right: Generated Image */}
                   <div>
-                    <label className="text-sm font-medium mb-2 block">Generated Image:</label>
+                    <label className="text-sm font-medium mb-2 block">
+                      Generated Image:
+                    </label>
                     <div className="aspect-square rounded-lg overflow-hidden bg-muted border-2 border-dashed border-muted-foreground/25">
                       {isGenerating ? (
                         <div className="flex items-center justify-center h-full">
                           <div className="text-center">
                             <Loader2 className="w-8 h-8 animate-spin mx-auto mb-2 text-primary" />
-                            <p className="text-sm text-muted-foreground">Generating image...</p>
+                            <p className="text-sm text-muted-foreground">
+                              Generating image...
+                            </p>
                           </div>
                         </div>
                       ) : existingImage ? (
@@ -258,22 +413,26 @@ export function ImageGeneration({ onNext, onPrev }: ImageGenerationProps) {
                         <div className="flex items-center justify-center h-full text-center">
                           <div>
                             <ImageIcon className="w-12 h-12 text-muted-foreground mx-auto mb-2" />
-                            <p className="text-sm text-muted-foreground">Click generate to create image</p>
+                            <p className="text-sm text-muted-foreground">
+                              Click generate to create image
+                            </p>
                           </div>
                         </div>
                       )}
                     </div>
-                    
+
                     {existingImage && (
                       <div className="flex space-x-2 mt-3">
                         <Button
                           size="sm"
-                          variant={existingImage.approved ? "default" : "outline"}
+                          variant={
+                            existingImage.approved ? "default" : "outline"
+                          }
                           onClick={() => approveImage(existingImage.id)}
                           className="flex-1"
                         >
                           <Check className="w-4 h-4 mr-1" />
-                          {existingImage.approved ? 'Approved' : 'Approve'}
+                          {existingImage.approved ? "Approved" : "Approve"}
                         </Button>
                         <Button
                           size="sm"
@@ -331,6 +490,29 @@ export function ImageGeneration({ onNext, onPrev }: ImageGenerationProps) {
           Next: Select Images ({approvedImages.length} approved)
         </Button>
       </div>
+
+      {/* Credit Purchase Modal */}
+      <CreditPurchaseModal
+        isOpen={showCreditModal}
+        onClose={() => setShowCreditModal(false)}
+        currentCredits={currentCredits}
+        subscriptionPlan={subscriptionPlan}
+        onPurchaseSuccess={() => {
+          // Refresh credits after purchase
+          const fetchCredits = async () => {
+            try {
+              const response = await axios.get(API_ENDPOINTS.CREDITS.GET);
+              if (response.data.success) {
+                setCurrentCredits(response.data.data.credits);
+              }
+            } catch (error) {
+              console.error("Failed to fetch credits:", error);
+            }
+          };
+          fetchCredits();
+          setShowCreditModal(false);
+        }}
+      />
     </div>
   );
 }
