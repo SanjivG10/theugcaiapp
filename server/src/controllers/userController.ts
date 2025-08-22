@@ -3,6 +3,19 @@ import { AuthService } from "../services/authService";
 import { BusinessService } from "../services/businessService";
 import { supabaseAdmin } from "../config/supabase";
 import { asyncHandler, ValidationError } from "../middleware/errorHandler";
+import { User, Business, Subscription, ApiResponse, VideoProject, UsageLog } from "../types/database";
+import { OnboardingProgress } from "../types/business";
+
+interface DashboardData {
+  user: User;
+  business: Business | null;
+  onboarding: OnboardingProgress;
+  stats: {
+    recent_videos: VideoProject[];
+    monthly_usage: number;
+    videos_generated: number;
+  };
+}
 
 const authService = new AuthService();
 const businessService = new BusinessService();
@@ -21,11 +34,13 @@ export const getCurrentUser = asyncHandler(
       throw new ValidationError("User not found");
     }
 
-    res.status(200).json({
+    const response: ApiResponse<User> = {
       success: true,
       message: "User retrieved successfully",
       data: user,
-    });
+    };
+
+    res.status(200).json(response);
   }
 );
 
@@ -48,11 +63,13 @@ export const updateCurrentUser = asyncHandler(
 
     const user = await authService.updateUser(userId, updates);
 
-    res.status(200).json({
+    const response: ApiResponse<User> = {
       success: true,
       message: "User updated successfully",
       data: user,
-    });
+    };
+
+    res.status(200).json(response);
   }
 );
 
@@ -81,7 +98,7 @@ export const getDashboardData = asyncHandler(
     // Get recent videos (you can implement this later)
     const { data: recentVideos } = await supabaseAdmin
       .from("video_projects")
-      .select("id, title, status, created_at, thumbnail_url")
+      .select("*")
       .eq("user_id", userId)
       .order("created_at", { ascending: false })
       .limit(5);
@@ -96,22 +113,24 @@ export const getDashboardData = asyncHandler(
         new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
       ); // Last 30 days
 
-    const dashboardData = {
+    const dashboardData: DashboardData = {
       user,
       business,
       onboarding: onboardingProgress,
       stats: {
-        recent_videos: recentVideos || [],
+        recent_videos: (recentVideos as VideoProject[]) || [],
         monthly_usage: usageStats?.length || 0,
         videos_generated: recentVideos?.length || 0,
       },
     };
 
-    res.status(200).json({
+    const response: ApiResponse<DashboardData> = {
       success: true,
       message: "Dashboard data retrieved successfully",
       data: dashboardData,
-    });
+    };
+
+    res.status(200).json(response);
   }
 );
 
@@ -136,11 +155,13 @@ export const getSubscriptionInfo = asyncHandler(
       throw new Error(`Failed to get subscription: ${error.message}`);
     }
 
-    res.status(200).json({
+    const response: ApiResponse<Subscription | null> = {
       success: true,
       message: "Subscription info retrieved successfully",
       data: subscription || null,
-    });
+    };
+
+    res.status(200).json(response);
   }
 );
 
@@ -186,11 +207,13 @@ export const updateSubscription = asyncHandler(
       subscription_status: "active",
     });
 
-    res.status(200).json({
+    const response: ApiResponse<Subscription> = {
       success: true,
       message: "Subscription updated successfully",
       data: subscription,
-    });
+    };
+
+    res.status(200).json(response);
   }
 );
 
@@ -217,10 +240,12 @@ export const deleteAccount = asyncHandler(
     // You might want to implement a more sophisticated deletion process
     // that handles data retention policies, billing, etc.
 
-    res.status(200).json({
+    const response: ApiResponse<null> = {
       success: true,
       message:
         "Account deletion initiated. You will receive a confirmation email.",
-    });
+    };
+
+    res.status(200).json(response);
   }
 );

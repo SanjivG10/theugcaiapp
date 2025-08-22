@@ -6,11 +6,11 @@ import {
   ValidationError,
 } from "../middleware/errorHandler";
 import {
-  AuthUser,
   JWTPayload,
   LoginRequest,
   SignupRequest,
 } from "../types/auth";
+import { User, UserInsert, UserUpdate } from "../types/database";
 
 export class AuthService {
   private jwtSecret: string;
@@ -41,7 +41,7 @@ export class AuthService {
 
   async signup(
     signupData: SignupRequest
-  ): Promise<{ user: AuthUser; token: string }> {
+  ): Promise<{ user: User; token: string }> {
     const { email, password, first_name, last_name } = signupData;
 
     // Validate input
@@ -107,7 +107,7 @@ export class AuthService {
       });
 
       return {
-        user: userData as AuthUser,
+        user: userData as User,
         token,
       };
     } catch (error) {
@@ -124,7 +124,7 @@ export class AuthService {
 
   async login(
     loginData: LoginRequest
-  ): Promise<{ user: AuthUser; token: string }> {
+  ): Promise<{ user: User; token: string }> {
     const { email, password } = loginData;
 
     // Validate input
@@ -176,7 +176,7 @@ export class AuthService {
       });
 
       return {
-        user: userData as AuthUser,
+        user: userData as User,
         token,
       };
     } catch (error) {
@@ -256,7 +256,7 @@ export class AuthService {
     }
   }
 
-  async getUserById(userId: string): Promise<AuthUser | null> {
+  async getUserById(userId: string): Promise<User | null> {
     try {
       const { data, error } = await supabaseAdmin
         .from("users")
@@ -268,7 +268,7 @@ export class AuthService {
         return null;
       }
 
-      return data as AuthUser;
+      return data as User;
     } catch (error) {
       console.error("Get user by ID error:", error);
       return null;
@@ -277,8 +277,8 @@ export class AuthService {
 
   async updateUser(
     userId: string,
-    updates: Partial<AuthUser>
-  ): Promise<AuthUser> {
+    updates: Partial<UserUpdate>
+  ): Promise<User> {
     try {
       const { data, error } = await supabaseAdmin
         .from("users")
@@ -294,7 +294,7 @@ export class AuthService {
         throw new Error(`Failed to update user: ${error.message}`);
       }
 
-      return data as AuthUser;
+      return data as User;
     } catch (error) {
       throw new Error(
         `Update user failed: ${

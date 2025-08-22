@@ -1,12 +1,14 @@
 import { Request, Response } from "express";
-import { BusinessService } from "../services/businessService";
+import { asyncHandler, ValidationError } from "../middleware/errorHandler";
 import { AuthService } from "../services/authService";
+import { BusinessService } from "../services/businessService";
 import {
+  BusinessOnboardingData,
   BusinessUpdateRequest,
   OnboardingStep1Data,
-  BusinessOnboardingData,
+  OnboardingProgress,
 } from "../types/business";
-import { asyncHandler, ValidationError } from "../middleware/errorHandler";
+import { ApiResponse, Business } from "../types/database";
 
 const businessService = new BusinessService();
 const authService = new AuthService();
@@ -21,11 +23,22 @@ export const getBusiness = asyncHandler(
 
     const business = await businessService.getBusinessByUserId(userId);
 
-    res.status(200).json({
+    if (!business) {
+      res.status(200).json({
+        success: true,
+        message: "Business not found",
+        data: null,
+      });
+      return;
+    }
+
+    const response: ApiResponse<Business> = {
       success: true,
       message: "Business retrieved successfully",
       data: business,
-    });
+    };
+
+    res.status(200).json(response);
   }
 );
 
@@ -46,11 +59,13 @@ export const updateBusiness = asyncHandler(
 
     const business = await businessService.updateBusiness(userId, updates);
 
-    res.status(200).json({
+    const response: ApiResponse<Business> = {
       success: true,
       message: "Business updated successfully",
       data: business,
-    });
+    };
+
+    res.status(200).json(response);
   }
 );
 
@@ -91,11 +106,13 @@ export const updateOnboardingStep = asyncHandler(
       data
     );
 
-    res.status(200).json({
+    const response: ApiResponse<Business> = {
       success: true,
       message: `Onboarding step ${step} completed successfully`,
       data: business,
-    });
+    };
+
+    res.status(200).json(response);
   }
 );
 
@@ -109,11 +126,13 @@ export const getOnboardingProgress = asyncHandler(
 
     const progress = await businessService.getOnboardingProgress(userId);
 
-    res.status(200).json({
+    const response: ApiResponse<OnboardingProgress> = {
       success: true,
       message: "Onboarding progress retrieved successfully",
       data: progress,
-    });
+    };
+
+    res.status(200).json(response);
   }
 );
 
@@ -140,11 +159,17 @@ export const skipOnboardingStep = asyncHandler(
       });
     }
 
-    res.status(200).json({
+    if (!business) {
+      throw new ValidationError("Failed to create or update business");
+    }
+
+    const response: ApiResponse<Business> = {
       success: true,
       message: `Onboarding step ${step} skipped`,
       data: business,
-    });
+    };
+
+    res.status(200).json(response);
   }
 );
 
@@ -180,7 +205,10 @@ export const completeOnboarding = asyncHandler(
       onboarding_completed: true,
     });
 
-    res.status(200).json({
+    const response: ApiResponse<{
+      progress: { current_step: number; completed: boolean };
+      business: Business;
+    }> = {
       success: true,
       message: "Onboarding completed successfully",
       data: {
@@ -190,6 +218,8 @@ export const completeOnboarding = asyncHandler(
         },
         business,
       },
-    });
+    };
+
+    res.status(200).json(response);
   }
 );

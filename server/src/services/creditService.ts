@@ -7,6 +7,7 @@ import {
 } from "../config/credits";
 import Stripe from "stripe";
 import { env } from "../config/env";
+import { CreditTransaction, CreditUsageLog, Business } from "../types/database";
 
 const stripe = new Stripe(env.STRIPE.SECRET_KEY, {
   apiVersion: "2025-07-30.basil",
@@ -16,7 +17,12 @@ export class CreditService {
   /**
    * Get business credit information
    */
-  static async getBusinessCredits(businessId: string) {
+  static async getBusinessCredits(businessId: string): Promise<{
+    credits: number | null;
+    subscription_plan: string | null;
+    subscription_status: string | null;
+    subscription_expires_at: string | null;
+  }> {
     const { data, error } = await supabaseAdmin
       .from("businesses")
       .select(
@@ -42,19 +48,34 @@ export class CreditService {
     const business = await this.getBusinessCredits(businessId);
     const requiredCredits = CREDIT_COSTS[action];
 
-    return business.credits >= requiredCredits;
+    return Boolean(business.credits && business.credits >= requiredCredits);
   }
 
   /**
-   * Consume credits for an action
+   * Consume credits for an action - overloaded method
    */
   static async consumeCredits(
     businessId: string,
-    action: CreditAction,
-    userId: string,
-    metadata?: Record<string, string>
-  ) {
-    const requiredCredits = CREDIT_COSTS[action];
+    actionOrAmount: CreditAction | number,
+    userIdOrDescription: string,
+    metadata?: Record<string, unknown>
+  ): Promise<Business> {
+    // Handle different call signatures
+    let requiredCredits: number;
+    let description: string;
+    let userId: string | undefined;
+
+    if (typeof actionOrAmount === "string") {
+      // Legacy signature: (businessId, action, userId, metadata)
+      requiredCredits = CREDIT_COSTS[actionOrAmount];
+      description = `Used ${requiredCredits} credits for ${actionOrAmount}`;
+      userId = userIdOrDescription;
+    } else {
+      // New signature: (businessId, amount, description, metadata)
+      requiredCredits = actionOrAmount;
+      description = userIdOrDescription;
+      userId = metadata?.user_id as string;
+    }
 
     // Get current credits to check if sufficient
     const { data: business, error: fetchError } = await supabaseAdmin
@@ -95,19 +116,22 @@ export class CreditService {
       transaction_type: "usage",
       amount: -requiredCredits,
       balance_after: newBalance,
-      description: `Used ${requiredCredits} credits for ${action}`,
-      metadata: { action, userId, ...metadata },
+      description: description,
+      metadata: metadata || {},
     });
 
-    // Log the usage
-    await supabaseAdmin.from("credit_usage_logs").insert({
-      business_id: businessId,
-      action_type: action,
-      credits_used: requiredCredits,
-      feature_used: action,
-      user_id: userId,
-      ...metadata,
-    });
+    // Log the usage if userId is available
+    if (userId) {
+      await supabaseAdmin.from("credit_usage_logs").insert({
+        business_id: businessId,
+        action_type:
+          typeof actionOrAmount === "string" ? actionOrAmount : "custom",
+        credits_used: requiredCredits,
+        feature_used:
+          typeof actionOrAmount === "string" ? actionOrAmount : "campaign",
+        user_id: userId,
+      });
+    }
 
     return data;
   }
@@ -128,9 +152,8 @@ export class CreditService {
     transactionType: "purchase" | "bonus" | "monthly_allocation" | "refund";
     description?: string;
     stripePaymentIntentId?: string;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    metadata?: Record<string, any>;
-  }) {
+    metadata?: Record<string, unknown>;
+  }): Promise<Business> {
     // Get current credits
     const { data: business, error: fetchError } = await supabaseAdmin
       .from("businesses")
@@ -180,7 +203,7 @@ export class CreditService {
     businessId: string,
     limit: number = 50,
     offset: number = 0
-  ) {
+  ): Promise<CreditTransaction[]> {
     const { data, error } = await supabaseAdmin
       .from("credit_transactions")
       .select("*")

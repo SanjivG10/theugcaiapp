@@ -1,19 +1,21 @@
 import { supabaseAdmin } from "../config/supabase";
 import { NotFoundError, ValidationError } from "../middleware/errorHandler";
 import {
-  BusinessData,
   OnboardingStepData,
   OnboardingProgress,
   OnboardingStep1Data,
   OnboardingStep2Data,
   OnboardingStep3Data,
   OnboardingStep4Data,
+  BusinessOnboardingData,
+  BusinessData,
 } from "../types/business";
+import { Business, BusinessInsert, BusinessUpdate } from "../types/database";
 
 export class BusinessService {
   async createBusiness(
-    businessData: Partial<BusinessData>
-  ): Promise<BusinessData> {
+    businessData: Partial<BusinessInsert>
+  ): Promise<Business> {
     try {
       const { data, error } = await supabaseAdmin
         .from("businesses")
@@ -30,7 +32,7 @@ export class BusinessService {
         throw new Error(`Failed to create business: ${error.message}`);
       }
 
-      return data as BusinessData;
+      return data as Business;
     } catch (error) {
       throw new Error(
         `Create business failed: ${
@@ -40,7 +42,7 @@ export class BusinessService {
     }
   }
 
-  async getBusinessByUserId(userId: string): Promise<BusinessData | null> {
+  async getBusinessByUserId(userId: string): Promise<Business | null> {
     try {
       const { data, error } = await supabaseAdmin
         .from("businesses")
@@ -54,7 +56,7 @@ export class BusinessService {
         throw new Error(`Failed to get business: ${error.message}`);
       }
 
-      return data as BusinessData | null;
+      return data as Business | null;
     } catch (error) {
       console.error("Get business by user ID error:", error);
       return null;
@@ -63,8 +65,8 @@ export class BusinessService {
 
   async updateBusiness(
     userId: string,
-    updates: Partial<BusinessData>
-  ): Promise<BusinessData> {
+    updates: Partial<BusinessUpdate>
+  ): Promise<Business> {
     try {
       // Check if business exists
       const existingBusiness = await this.getBusinessByUserId(userId);
@@ -87,7 +89,7 @@ export class BusinessService {
         throw new Error(`Failed to update business: ${error.message}`);
       }
 
-      return data as BusinessData;
+      return data as Business;
     } catch (error) {
       if (error instanceof NotFoundError) {
         throw error;
@@ -104,7 +106,7 @@ export class BusinessService {
     userId: string,
     step: number,
     stepData: OnboardingStepData
-  ): Promise<BusinessData> {
+  ): Promise<Business> {
     try {
       let business = await this.getBusinessByUserId(userId);
 
@@ -149,8 +151,8 @@ export class BusinessService {
   private mapStepDataToBusiness(
     step: number,
     stepData: OnboardingStepData
-  ): Partial<BusinessData> {
-    const mapped: Partial<BusinessData> = {};
+  ): Partial<Business> {
+    const mapped: Partial<Business> = {};
 
     switch (step) {
       case 1:
@@ -202,7 +204,7 @@ export class BusinessService {
       return {
         current_step: business.onboarding_step || 1,
         completed: business.onboarding_completed || false,
-        business_data: business,
+        business_data: business as BusinessData,
       };
     } catch (error) {
       throw new Error(
@@ -261,11 +263,11 @@ export class BusinessService {
 
   async createOrUpdateBusiness(
     userId: string,
-    businessData: Partial<BusinessData>
-  ): Promise<BusinessData> {
+    businessData: Partial<BusinessInsert>
+  ): Promise<Business> {
     try {
       const existingBusiness = await this.getBusinessByUserId(userId);
-      
+
       if (existingBusiness) {
         // Update existing business
         return await this.updateBusiness(userId, businessData);

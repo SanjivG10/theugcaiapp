@@ -1,17 +1,17 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { CreateCampaignModal } from "@/components/campaign/CreateCampaignModal";
 import { Header } from "@/components/dashboard/header";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
@@ -19,65 +19,32 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { URLS } from "@/constants/urls";
+import { api } from "@/lib/api";
+import { Campaign, CampaignStats } from "@/types";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { API_ENDPOINTS, URLS } from "@/constants/urls";
-import { useAuth } from "@/contexts/AuthContext";
-import axios from "axios";
-import {
+  Calendar,
+  CheckCircle,
+  Clock,
+  Edit,
+  Eye,
+  FileText,
+  Image,
+  MoreVertical,
+  Pause,
+  Play,
   Plus,
   Search,
-  Filter,
-  MoreVertical,
-  Eye,
-  Edit,
   Trash2,
-  Calendar,
-  Zap,
   Video,
-  Image,
-  FileText,
-  Play,
-  Pause,
-  CheckCircle,
   XCircle,
-  Clock,
+  Zap,
 } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
 
-interface Campaign {
-  id: string;
-  name: string;
-  description?: string;
-  status: "draft" | "in_progress" | "completed" | "failed" | "cancelled";
-  campaign_type: "video" | "image" | "script";
-  prompt?: string;
-  credits_used: number;
-  estimated_credits: number;
-  thumbnail_url?: string;
-  output_urls?: string[];
-  created_at: string;
-  updated_at: string;
-  businesses: {
-    name: string;
-  };
-}
-
-interface CampaignStats {
-  totalCampaigns: number;
-  totalCreditsUsed: number;
-  statusCounts: Record<string, number>;
-  typeCounts: Record<string, number>;
-  completionRate: string;
-}
-
 export default function CampaignsPage() {
-  const { user } = useAuth();
   const router = useRouter();
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [stats, setStats] = useState<CampaignStats | null>(null);
@@ -87,11 +54,20 @@ export default function CampaignsPage() {
   const [typeFilter, setTypeFilter] = useState("all");
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
+  const [showCreateModal, setShowCreateModal] = useState(false);
+
+  const query = useSearchParams();
 
   useEffect(() => {
     fetchCampaigns();
     fetchStats();
   }, [currentPage, statusFilter, typeFilter, searchTerm]);
+
+  useEffect(() => {
+    if (query.get("create") === "true") {
+      setShowCreateModal(true);
+    }
+  }, [query]);
 
   const fetchCampaigns = async () => {
     try {
@@ -113,13 +89,13 @@ export default function CampaignsPage() {
         params.append("search", searchTerm);
       }
 
-      const response = await axios.get(`${API_ENDPOINTS.CAMPAIGNS.LIST}?${params}`);
-      
-      if (response.data.success) {
-        setCampaigns(response.data.data.campaigns);
-        setTotalPages(response.data.data.pagination.totalPages);
+      const response = await api.getCampaigns(currentPage);
+
+      if (response.success) {
+        setCampaigns(response.data?.campaigns || []);
+        setTotalPages(response.data?.pagination.totalPages || 1);
       } else {
-        throw new Error(response.data.message);
+        throw new Error(response.message);
       }
     } catch (error) {
       console.error("Error fetching campaigns:", error);
@@ -131,10 +107,27 @@ export default function CampaignsPage() {
 
   const fetchStats = async () => {
     try {
-      const response = await axios.get(API_ENDPOINTS.CAMPAIGNS.STATS);
-      
-      if (response.data.success) {
-        setStats(response.data.data);
+      const response = await api.getCampaignStats();
+
+      if (response.success && response.data) {
+        // Transform the server response to match the expected CampaignStats interface
+        const serverData = response.data as unknown as {
+          totalCampaigns: number;
+          totalCreditsUsed: number;
+          statusCounts: Record<string, number>;
+          typeCounts: Record<string, number>;
+          completionRate: string;
+        };
+        const transformedStats: CampaignStats = {
+          total_campaigns: serverData.totalCampaigns || 0,
+          campaigns_this_month: 0, // Not provided by server
+          active_campaigns: serverData.statusCounts?.in_progress || 0,
+          completed_campaigns: serverData.statusCounts?.completed || 0,
+          failed_campaigns: serverData.statusCounts?.failed || 0,
+          total_credits_used: serverData.totalCreditsUsed || 0,
+          average_completion_time: parseFloat(serverData.completionRate || "0"),
+        };
+        setStats(transformedStats);
       }
     } catch (error) {
       console.error("Error fetching campaign stats:", error);
@@ -147,18 +140,23 @@ export default function CampaignsPage() {
     }
 
     try {
-      const response = await axios.delete(API_ENDPOINTS.CAMPAIGNS.DELETE(campaignId));
-      
-      if (response.data.success) {
+      const response = await api.deleteCampaign(campaignId);
+
+      if (response.success) {
         toast.success("Campaign deleted successfully");
         fetchCampaigns();
         fetchStats();
       } else {
-        throw new Error(response.data.message);
+        throw new Error(response.message);
       }
-    } catch (error: any) {
-      console.error("Error deleting campaign:", error);
-      toast.error(error.response?.data?.message || "Failed to delete campaign");
+    } catch (error: unknown) {
+      if (error instanceof Error) {
+        console.error("Error deleting campaign:", error);
+        toast.error(error.message || "Failed to delete campaign");
+      } else {
+        console.error("Error deleting campaign:", error);
+        toast.error("Failed to delete campaign");
+      }
     }
   };
 
@@ -227,15 +225,16 @@ export default function CampaignsPage() {
       <Header
         title="Campaigns"
         description="Manage your AI-generated content campaigns"
-      >
-        <Button
-          onClick={() => router.push(URLS.CAMPAIGN.CREATE)}
-          className="flex items-center gap-2"
-        >
-          <Plus className="h-4 w-4" />
-          Create Campaign
-        </Button>
-      </Header>
+        action={
+          <Button
+            onClick={() => setShowCreateModal(true)}
+            className="flex items-center gap-2"
+          >
+            <Plus className="h-4 w-4" />
+            Create Campaign
+          </Button>
+        }
+      />
 
       <div className="p-6 max-w-7xl space-y-6">
         {/* Stats Cards */}
@@ -243,41 +242,57 @@ export default function CampaignsPage() {
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Total Campaigns</CardTitle>
+                <CardTitle className="text-sm font-medium">
+                  Total Campaigns
+                </CardTitle>
                 <Calendar className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{stats.totalCampaigns}</div>
+                <div className="text-2xl font-bold">
+                  {stats.total_campaigns}
+                </div>
               </CardContent>
             </Card>
 
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Credits Used</CardTitle>
+                <CardTitle className="text-sm font-medium">
+                  Credits Used
+                </CardTitle>
                 <Zap className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{stats.totalCreditsUsed}</div>
+                <div className="text-2xl font-bold">
+                  {stats.total_credits_used}
+                </div>
               </CardContent>
             </Card>
 
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Completion Rate</CardTitle>
+                <CardTitle className="text-sm font-medium">
+                  Completion Rate
+                </CardTitle>
                 <CheckCircle className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{stats.completionRate}%</div>
+                <div className="text-2xl font-bold">
+                  {stats.average_completion_time}%
+                </div>
               </CardContent>
             </Card>
 
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Active Campaigns</CardTitle>
+                <CardTitle className="text-sm font-medium">
+                  Active Campaigns
+                </CardTitle>
                 <Play className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{stats.statusCounts.in_progress || 0}</div>
+                <div className="text-2xl font-bold">
+                  {stats.active_campaigns || 0}
+                </div>
               </CardContent>
             </Card>
           </div>
@@ -298,7 +313,7 @@ export default function CampaignsPage() {
                   />
                 </div>
               </div>
-              
+
               <div className="flex items-center space-x-2">
                 <Select value={statusFilter} onValueChange={setStatusFilter}>
                   <SelectTrigger className="w-[140px]">
@@ -340,9 +355,11 @@ export default function CampaignsPage() {
             <Card>
               <CardContent className="py-8">
                 <div className="text-center">
-                  <div className="text-muted-foreground mb-4">No campaigns found</div>
+                  <div className="text-muted-foreground mb-4">
+                    No campaigns found
+                  </div>
                   <Button
-                    onClick={() => router.push(URLS.CAMPAIGN.CREATE)}
+                    onClick={() => setShowCreateModal(true)}
                     className="flex items-center gap-2"
                   >
                     <Plus className="h-4 w-4" />
@@ -353,7 +370,10 @@ export default function CampaignsPage() {
             </Card>
           ) : (
             campaigns.map((campaign) => (
-              <Card key={campaign.id} className="hover:shadow-md transition-shadow">
+              <Card
+                key={campaign.id}
+                className="hover:shadow-md transition-shadow"
+              >
                 <CardContent className="p-6">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center space-x-4">
@@ -366,7 +386,7 @@ export default function CampaignsPage() {
                           />
                         ) : (
                           <div className="h-16 w-16 rounded-lg bg-muted flex items-center justify-center">
-                            {getTypeIcon(campaign.campaign_type)}
+                            {getTypeIcon(campaign.campaign_type || "")}
                           </div>
                         )}
                       </div>
@@ -376,16 +396,26 @@ export default function CampaignsPage() {
                           <h3 className="text-lg font-semibold truncate">
                             {campaign.name}
                           </h3>
-                          <Badge className={getStatusColor(campaign.status)}>
+                          <Badge
+                            className={getStatusColor(campaign.status || "")}
+                          >
                             <div className="flex items-center gap-1">
-                              {getStatusIcon(campaign.status)}
-                              <span className="capitalize">{campaign.status.replace("_", " ")}</span>
+                              {getStatusIcon(campaign.status || "")}
+                              <span className="capitalize">
+                                {campaign.status?.replace("_", " ")}
+                              </span>
                             </div>
                           </Badge>
-                          <Badge className={getTypeColor(campaign.campaign_type)}>
+                          <Badge
+                            className={getTypeColor(
+                              campaign.campaign_type || ""
+                            )}
+                          >
                             <div className="flex items-center gap-1">
-                              {getTypeIcon(campaign.campaign_type)}
-                              <span className="capitalize">{campaign.campaign_type}</span>
+                              {getTypeIcon(campaign.campaign_type || "")}
+                              <span className="capitalize">
+                                {campaign.campaign_type}
+                              </span>
                             </div>
                           </Badge>
                         </div>
@@ -403,7 +433,11 @@ export default function CampaignsPage() {
                           </div>
                           <div className="flex items-center gap-1">
                             <Calendar className="h-4 w-4" />
-                            <span>{new Date(campaign.created_at).toLocaleDateString()}</span>
+                            <span>
+                              {new Date(
+                                campaign.created_at || ""
+                              ).toLocaleDateString()}
+                            </span>
                           </div>
                         </div>
                       </div>
@@ -413,7 +447,9 @@ export default function CampaignsPage() {
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => router.push(URLS.CAMPAIGN.VIEW(campaign.id))}
+                        onClick={() =>
+                          router.push(URLS.CAMPAIGN.VIEW(campaign.id))
+                        }
                       >
                         <Eye className="h-4 w-4 mr-1" />
                         View
@@ -427,13 +463,17 @@ export default function CampaignsPage() {
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
                           <DropdownMenuItem
-                            onClick={() => router.push(URLS.CAMPAIGN.VIEW(campaign.id))}
+                            onClick={() =>
+                              router.push(URLS.CAMPAIGN.VIEW(campaign.id))
+                            }
                           >
                             <Eye className="h-4 w-4 mr-2" />
                             View Details
                           </DropdownMenuItem>
                           <DropdownMenuItem
-                            onClick={() => router.push(URLS.CAMPAIGN.EDIT(campaign.id))}
+                            onClick={() =>
+                              router.push(URLS.CAMPAIGN.EDIT(campaign.id))
+                            }
                             disabled={campaign.status === "in_progress"}
                           >
                             <Edit className="h-4 w-4 mr-2" />
@@ -451,9 +491,8 @@ export default function CampaignsPage() {
                       </DropdownMenu>
                     </div>
                   </div>
-                </Card>
-              </CardContent>
-            </Card>
+                </CardContent>
+              </Card>
             ))
           )}
         </div>
@@ -468,14 +507,16 @@ export default function CampaignsPage() {
             >
               Previous
             </Button>
-            
+
             <span className="text-sm text-muted-foreground">
               Page {currentPage} of {totalPages}
             </span>
-            
+
             <Button
               variant="outline"
-              onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
+              onClick={() =>
+                setCurrentPage(Math.min(totalPages, currentPage + 1))
+              }
               disabled={currentPage === totalPages}
             >
               Next
@@ -483,6 +524,15 @@ export default function CampaignsPage() {
           </div>
         )}
       </div>
+
+      <CreateCampaignModal
+        open={showCreateModal}
+        onOpenChange={setShowCreateModal}
+        onCampaignCreated={() => {
+          fetchCampaigns();
+          fetchStats();
+        }}
+      />
     </div>
   );
 }

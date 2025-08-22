@@ -1,13 +1,20 @@
 import { Request, Response } from "express";
 import { CampaignService } from "../services/campaignService";
-
+import { Campaign, CampaignInsert, CampaignUpdate, ApiResponse, PaginatedResponse } from "../types/database";
 import { z } from "zod";
 import { supabaseAdmin } from "../config/supabase";
+
+// Type for campaign with business information
+type CampaignWithBusiness = Campaign & {
+  businesses: {
+    name: string;
+  } | null;
+};
 
 const createCampaignSchema = z.object({
   name: z.string().min(1, "Campaign name is required"),
   description: z.string().optional(),
-  campaign_type: z.enum(["video", "image", "script"]),
+  campaign_type: z.enum(["video", "image", "script"]).optional(),
   prompt: z.string().optional(),
   settings: z.record(z.any(), z.any()).optional(),
   estimated_credits: z.number().int().min(0).optional(),
@@ -16,6 +23,7 @@ const createCampaignSchema = z.object({
 const updateCampaignSchema = z.object({
   name: z.string().min(1).optional(),
   description: z.string().optional(),
+  campaign_type: z.enum(["video", "image", "script"]).optional(),
   status: z
     .enum(["draft", "in_progress", "completed", "failed", "cancelled"])
     .optional(),
@@ -26,6 +34,8 @@ const updateCampaignSchema = z.object({
   credits_used: z.number().int().min(0).optional(),
   estimated_credits: z.number().int().min(0).optional(),
   metadata: z.record(z.any(), z.any()).optional(),
+  current_step: z.number().int().min(1).max(4).optional(),
+  step_data: z.record(z.any(), z.any()).optional(),
 });
 
 export class CampaignController {
@@ -88,10 +98,10 @@ export class CampaignController {
         });
       }
 
-      return res.json({
+      const response: ApiResponse<PaginatedResponse<CampaignWithBusiness>> = {
         success: true,
         data: {
-          campaigns: campaigns || [],
+          data: campaigns || [],
           pagination: {
             page: Number(page),
             limit: Number(limit),
@@ -99,7 +109,9 @@ export class CampaignController {
             totalPages: Math.ceil((count || 0) / Number(limit)),
           },
         },
-      });
+      };
+
+      return res.json(response);
     } catch (error) {
       console.error("Error in getCampaigns:", error);
       return res.status(500).json({
@@ -140,10 +152,12 @@ export class CampaignController {
         });
       }
 
-      return res.json({
+      const response: ApiResponse<Campaign> = {
         success: true,
         data: campaign,
-      });
+      };
+
+      return res.json(response);
     } catch (error) {
       console.error("Error in getCampaignById:", error);
       return res.status(500).json({
@@ -195,10 +209,12 @@ export class CampaignController {
         user_id: userId,
       });
 
-      return res.status(201).json({
+      const response: ApiResponse<Campaign> = {
         success: true,
         data: campaign,
-      });
+      };
+
+      return res.status(201).json(response);
     } catch (error) {
       console.error("Error in createCampaign:", error);
       return res.status(500).json({
@@ -270,13 +286,11 @@ export class CampaignController {
         }
 
         // Remove status-related fields from updateData since they're handled by the function
-        const {
-          status,
-          credits_used,
-          output_urls,
-          thumbnail_url,
-          ...otherUpdates
-        } = updateData;
+        const otherUpdates = { ...updateData };
+        delete otherUpdates.status;
+        delete otherUpdates.credits_used;
+        delete otherUpdates.output_urls;
+        delete otherUpdates.thumbnail_url;
 
         // Update any remaining fields
         if (Object.keys(otherUpdates).length > 0) {
@@ -329,10 +343,12 @@ export class CampaignController {
         });
       }
 
-      return res.json({
+      const response: ApiResponse<Campaign> = {
         success: true,
         data: updatedCampaign,
-      });
+      };
+
+      return res.json(response);
     } catch (error) {
       console.error("Error in updateCampaign:", error);
       return res.status(500).json({
@@ -391,10 +407,12 @@ export class CampaignController {
         });
       }
 
-      return res.json({
+      const response: ApiResponse<null> = {
         success: true,
         message: "Campaign deleted successfully",
-      });
+      };
+
+      return res.json(response);
     } catch (error) {
       console.error("Error in deleteCampaign:", error);
       return res.status(500).json({

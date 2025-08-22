@@ -13,15 +13,15 @@ import { URLS } from "@/constants/urls";
 import { useBusiness } from "@/hooks/useBusiness";
 import { api } from "@/lib/api";
 import {
-  BarChart3,
   Calendar,
-  Link,
+  Eye,
   Plus,
   Target,
   TrendingUp,
   Video,
   Zap,
 } from "lucide-react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 
@@ -111,10 +111,10 @@ export default function DashboardPage() {
         title="Dashboard"
         description="Welcome back! Here's what's happening with your campaigns."
         action={
-          <Button onClick={() => router.push(URLS.CAMPAIGN.CREATE)}>
+          <Link href={URLS.DASHBOARD.CAMPAIGNS_QUERY_CREATE}>
             <Plus className="mr-2 h-4 w-4" />
             Create Campaign
-          </Button>
+          </Link>
         }
       />
 
@@ -207,10 +207,12 @@ export default function DashboardPage() {
                     Get started by creating your first AI campaign.
                   </p>
                   <div className="mt-6">
-                    <Button onClick={() => router.push(URLS.CAMPAIGN.CREATE)}>
-                      <Plus className="mr-2 h-4 w-4" />
-                      Create Campaign
-                    </Button>
+                    <Link href={URLS.DASHBOARD.CAMPAIGNS_QUERY_CREATE}>
+                      <Button>
+                        <Plus className="mr-2 h-4 w-4" />
+                        Create Campaign
+                      </Button>
+                    </Link>
                   </div>
                 </div>
               )}

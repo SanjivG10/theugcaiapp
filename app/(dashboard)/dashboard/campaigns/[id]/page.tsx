@@ -43,12 +43,12 @@ interface Campaign {
   status: "draft" | "in_progress" | "completed" | "failed" | "cancelled";
   campaign_type: "video" | "image" | "script";
   prompt?: string;
-  settings: Record<string, any>;
+  settings: Record<string, unknown>;
   output_urls?: string[];
   thumbnail_url?: string;
   credits_used: number;
   estimated_credits: number;
-  metadata: Record<string, any>;
+  metadata: Record<string, unknown>;
   started_at?: string;
   completed_at?: string;
   created_at: string;
@@ -76,7 +76,7 @@ export default function CampaignDetailsPage() {
     try {
       setLoading(true);
       const response = await axios.get(API_ENDPOINTS.CAMPAIGNS.GET(campaignId));
-      
+
       if (response.data.success) {
         setCampaign(response.data.data);
       } else {
@@ -92,22 +92,32 @@ export default function CampaignDetailsPage() {
   };
 
   const handleDeleteCampaign = async () => {
-    if (!campaign || !confirm("Are you sure you want to delete this campaign?")) {
+    if (
+      !campaign ||
+      !confirm("Are you sure you want to delete this campaign?")
+    ) {
       return;
     }
 
     try {
-      const response = await axios.delete(API_ENDPOINTS.CAMPAIGNS.DELETE(campaign.id));
-      
+      const response = await axios.delete(
+        API_ENDPOINTS.CAMPAIGNS.DELETE(campaign.id)
+      );
+
       if (response.data.success) {
         toast.success("Campaign deleted successfully");
         router.push(URLS.DASHBOARD.CAMPAIGNS);
       } else {
         throw new Error(response.data.message);
       }
-    } catch (error: any) {
-      console.error("Error deleting campaign:", error);
-      toast.error(error.response?.data?.message || "Failed to delete campaign");
+    } catch (error: unknown) {
+      if (error instanceof Error) {
+        console.error("Error deleting campaign:", error);
+        toast.error(error.message || "Failed to delete campaign");
+      } else {
+        console.error("Error deleting campaign:", error);
+        toast.error("Failed to delete campaign");
+      }
     }
   };
 
@@ -174,10 +184,15 @@ export default function CampaignDetailsPage() {
   if (loading) {
     return (
       <div className="space-y-6">
-        <Header title="Campaign Details" description="Loading campaign information..." />
+        <Header
+          title="Campaign Details"
+          description="Loading campaign information..."
+        />
         <div className="p-6 max-w-6xl">
           <div className="flex items-center justify-center py-12">
-            <div className="text-muted-foreground">Loading campaign details...</div>
+            <div className="text-muted-foreground">
+              Loading campaign details...
+            </div>
           </div>
         </div>
       </div>
@@ -187,12 +202,17 @@ export default function CampaignDetailsPage() {
   if (!campaign) {
     return (
       <div className="space-y-6">
-        <Header title="Campaign Not Found" description="The requested campaign could not be found" />
+        <Header
+          title="Campaign Not Found"
+          description="The requested campaign could not be found"
+        />
         <div className="p-6 max-w-6xl">
           <Card>
             <CardContent className="py-8">
               <div className="text-center">
-                <div className="text-muted-foreground mb-4">Campaign not found</div>
+                <div className="text-muted-foreground mb-4">
+                  Campaign not found
+                </div>
                 <Button onClick={() => router.push(URLS.DASHBOARD.CAMPAIGNS)}>
                   <ArrowLeft className="h-4 w-4 mr-2" />
                   Back to Campaigns
@@ -209,34 +229,10 @@ export default function CampaignDetailsPage() {
     <div className="space-y-6">
       <Header
         title={campaign.name}
-        description={campaign.description || "Campaign details and generated content"}
-      >
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            onClick={() => router.push(URLS.DASHBOARD.CAMPAIGNS)}
-          >
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Back
-          </Button>
-          <Button
-            variant="outline"
-            onClick={() => router.push(URLS.CAMPAIGN.EDIT(campaign.id))}
-            disabled={campaign.status === "in_progress"}
-          >
-            <Edit className="h-4 w-4 mr-2" />
-            Edit
-          </Button>
-          <Button
-            variant="destructive"
-            onClick={handleDeleteCampaign}
-            disabled={campaign.status === "in_progress"}
-          >
-            <Trash2 className="h-4 w-4 mr-2" />
-            Delete
-          </Button>
-        </div>
-      </Header>
+        description={
+          campaign.description || "Campaign details and generated content"
+        }
+      />
 
       <div className="p-6 max-w-6xl space-y-6">
         {/* Campaign Overview */}
@@ -252,13 +248,17 @@ export default function CampaignDetailsPage() {
                   <Badge className={getStatusColor(campaign.status)}>
                     <div className="flex items-center gap-1">
                       {getStatusIcon(campaign.status)}
-                      <span className="capitalize">{campaign.status.replace("_", " ")}</span>
+                      <span className="capitalize">
+                        {campaign.status.replace("_", " ")}
+                      </span>
                     </div>
                   </Badge>
                   <Badge className={getTypeColor(campaign.campaign_type)}>
                     <div className="flex items-center gap-1">
                       {getTypeIcon(campaign.campaign_type)}
-                      <span className="capitalize">{campaign.campaign_type}</span>
+                      <span className="capitalize">
+                        {campaign.campaign_type}
+                      </span>
                     </div>
                   </Badge>
                 </div>
@@ -291,13 +291,17 @@ export default function CampaignDetailsPage() {
                 <div className="flex items-center gap-2">
                   <Calendar className="h-4 w-4 text-muted-foreground" />
                   <span className="text-muted-foreground">Created:</span>
-                  <span>{new Date(campaign.created_at).toLocaleDateString()}</span>
+                  <span>
+                    {new Date(campaign.created_at).toLocaleDateString()}
+                  </span>
                 </div>
                 {campaign.completed_at && (
                   <div className="flex items-center gap-2">
                     <CheckCircle className="h-4 w-4 text-muted-foreground" />
                     <span className="text-muted-foreground">Completed:</span>
-                    <span>{new Date(campaign.completed_at).toLocaleDateString()}</span>
+                    <span>
+                      {new Date(campaign.completed_at).toLocaleDateString()}
+                    </span>
                   </div>
                 )}
               </div>
@@ -323,11 +327,17 @@ export default function CampaignDetailsPage() {
             <CardContent className="space-y-4">
               <div className="space-y-3">
                 <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Estimated Credits</span>
-                  <span className="font-medium">{campaign.estimated_credits}</span>
+                  <span className="text-muted-foreground">
+                    Estimated Credits
+                  </span>
+                  <span className="font-medium">
+                    {campaign.estimated_credits}
+                  </span>
                 </div>
                 <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Actual Credits Used</span>
+                  <span className="text-muted-foreground">
+                    Actual Credits Used
+                  </span>
                   <span className="font-medium">{campaign.credits_used}</span>
                 </div>
                 {campaign.started_at && (
@@ -353,11 +363,20 @@ export default function CampaignDetailsPage() {
                 {campaign.output_urls && campaign.output_urls.length > 0 ? (
                   <div className="space-y-2">
                     {campaign.output_urls.map((url, index) => (
-                      <div key={index} className="flex items-center justify-between p-2 bg-muted rounded-lg">
-                        <span className="text-sm truncate">File {index + 1}</span>
+                      <div
+                        key={index}
+                        className="flex items-center justify-between p-2 bg-muted rounded-lg"
+                      >
+                        <span className="text-sm truncate">
+                          File {index + 1}
+                        </span>
                         <div className="flex items-center gap-2">
                           <Button size="sm" variant="outline" asChild>
-                            <a href={url} target="_blank" rel="noopener noreferrer">
+                            <a
+                              href={url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                            >
                               <ExternalLink className="h-3 w-3" />
                             </a>
                           </Button>
@@ -385,7 +404,9 @@ export default function CampaignDetailsPage() {
           <Card>
             <CardHeader>
               <CardTitle>Generated Content</CardTitle>
-              <CardDescription>Preview of your generated content</CardDescription>
+              <CardDescription>
+                Preview of your generated content
+              </CardDescription>
             </CardHeader>
             <CardContent>
               <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
@@ -410,10 +431,16 @@ export default function CampaignDetailsPage() {
                       </div>
                     )}
                     <div className="flex items-center justify-between">
-                      <span className="text-sm font-medium">Output {index + 1}</span>
+                      <span className="text-sm font-medium">
+                        Output {index + 1}
+                      </span>
                       <div className="flex items-center gap-1">
                         <Button size="sm" variant="outline" asChild>
-                          <a href={url} target="_blank" rel="noopener noreferrer">
+                          <a
+                            href={url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                          >
                             <ExternalLink className="h-3 w-3 mr-1" />
                             View
                           </a>

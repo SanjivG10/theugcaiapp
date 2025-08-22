@@ -6,6 +6,7 @@ import {
   type SubscriptionPlan,
 } from "../config/credits";
 import { BusinessService } from "../services/businessService";
+import { ApiResponse, CreditTransaction, Business } from "../types/database";
 
 const businessService = new BusinessService();
 
@@ -26,10 +27,17 @@ export class CreditController {
 
       const credits = await CreditService.getBusinessCredits(business.id);
 
-      res.json({
+      const response: ApiResponse<{
+        credits: number | null;
+        subscription_plan: string | null;
+        subscription_status: string | null;
+        subscription_expires_at: string | null;
+      }> = {
         success: true,
         data: credits,
-      });
+      };
+
+      res.json(response);
     } catch (error) {
       console.error("Get credits error:", error);
       res.status(500).json({
@@ -62,10 +70,12 @@ export class CreditController {
         offset
       );
 
-      res.json({
+      const response: ApiResponse<CreditTransaction[]> = {
         success: true,
         data: history,
-      });
+      };
+
+      res.json(response);
     } catch (error) {
       console.error("Get credit history error:", error);
       res.status(500).json({
@@ -112,10 +122,12 @@ export class CreditController {
         cancelUrl
       );
 
-      res.json({
+      const response: ApiResponse<{ sessionId: string; url: string | null }> = {
         success: true,
         data: session,
-      });
+      };
+
+      res.json(response);
     } catch (error) {
       console.error("Create credit purchase session error:", error);
       res.status(500).json({
@@ -165,10 +177,12 @@ export class CreditController {
         cancelUrl
       );
 
-      res.json({
+      const response: ApiResponse<{ sessionId: string; url: string | null }> = {
         success: true,
         data: session,
-      });
+      };
+
+      res.json(response);
     } catch (error) {
       console.error("Create subscription session error:", error);
       res.status(500).json({
@@ -207,14 +221,20 @@ export class CreditController {
       );
       const credits = await CreditService.getBusinessCredits(business.id);
 
-      res.json({
+      const response: ApiResponse<{
+        hasSufficientCredits: boolean;
+        currentCredits: number | null;
+        requiredCredits: number;
+      }> = {
         success: true,
         data: {
           hasSufficientCredits: hasSufficient,
           currentCredits: credits.credits,
           requiredCredits: CREDIT_COSTS[action as keyof typeof CREDIT_COSTS],
         },
-      });
+      };
+
+      res.json(response);
     } catch (error) {
       console.error("Check credits error:", error);
       res.status(500).json({
@@ -254,13 +274,18 @@ export class CreditController {
         metadata
       );
 
-      res.json({
+      const response: ApiResponse<{
+        newBalance: Business;
+        creditsConsumed: number;
+      }> = {
         success: true,
         data: {
           newBalance,
           creditsConsumed: CREDIT_COSTS[action as keyof typeof CREDIT_COSTS],
         },
-      });
+      };
+
+      res.json(response);
     } catch (error) {
       console.error("Consume credits error:", error);
       res.status(500).json({
@@ -291,10 +316,12 @@ export class CreditController {
         days
       );
 
-      res.json({
+      const response: ApiResponse<Record<string, Record<string, number>>> = {
         success: true,
         data: analytics,
-      });
+      };
+
+      res.json(response);
     } catch (error) {
       console.error("Get credit analytics error:", error);
       res.status(500).json({
@@ -350,7 +377,7 @@ export class CreditController {
   /**
    * Get available subscription plans
    */
-  static async getSubscriptionPlans(req: Request, res: Response) {
+  static async getSubscriptionPlans(_req: Request, res: Response) {
     try {
       res.json({
         success: true,

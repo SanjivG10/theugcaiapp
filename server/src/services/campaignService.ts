@@ -1,13 +1,25 @@
 import { supabaseAdmin } from "../config/supabase";
-import { CREDIT_COSTS } from "../constants/credits";
 import { CreditService } from "./creditService";
+import {
+  Campaign,
+  CampaignInsert,
+  CampaignUpdate,
+  Json,
+} from "../types/database";
+
+// Credit costs for different campaign types
+const CREDIT_COSTS = {
+  video: 10,
+  image: 5,
+  script: 3,
+} as const;
 
 export interface CreateCampaignData {
   name: string;
   description?: string;
-  campaign_type: "video" | "image" | "script";
+  campaign_type?: "video" | "image" | "script";
   prompt?: string;
-  settings?: Record<string, unknown>;
+  settings?: Json;
   business_id: string;
   user_id: string;
 }
@@ -24,46 +36,32 @@ export class CampaignService {
   /**
    * Create a new campaign and estimate credit costs
    */
-  static async createCampaign(data: CreateCampaignData) {
+  static async createCampaign(data: CreateCampaignData): Promise<Campaign> {
     try {
-      // Estimate credits based on campaign type
-      const estimatedCredits = this.estimateCredits(
-        data.campaign_type,
-        data.settings
-      );
+      // For initial creation, we don't estimate credits yet since campaign_type might not be set
+      const estimatedCredits = data.campaign_type
+        ? this.estimateCredits(data.campaign_type, data.settings)
+        : 0;
 
-      // Check if business has enough credits
-      const { data: business, error: businessError } = await supabaseAdmin
-        .from("businesses")
-        .select("credits")
-        .eq("id", data.business_id)
-        .single();
+      // Create campaign without credit checks for initial draft
+      const insertData: CampaignInsert = {
+        name: data.name,
+        description: data.description,
+        campaign_type: data.campaign_type || undefined,
+        prompt: data.prompt || undefined,
+        settings: data.settings || {},
+        business_id: data.business_id,
+        user_id: data.user_id,
+        estimated_credits: estimatedCredits,
+        current_step: 1,
+        total_steps: 4,
+        step_data: {},
+        metadata: {},
+      };
 
-      if (businessError || !business) {
-        throw new Error("Business not found");
-      }
-
-      if (business.credits < estimatedCredits) {
-        throw new Error(
-          `Insufficient credits. Required: ${estimatedCredits}, Available: ${business.credits}`
-        );
-      }
-
-      // Create campaign
       const { data: campaign, error: campaignError } = await supabaseAdmin
         .from("campaigns")
-        .insert({
-          name: data.name,
-          description: data.description,
-          campaign_type: data.campaign_type,
-          prompt: data.prompt,
-          settings: data.settings || {},
-          business_id: data.business_id,
-          user_id: data.user_id,
-          estimated_credits: estimatedCredits,
-          status: "draft",
-          metadata: {},
-        })
+        .insert(insertData)
         .select()
         .single();
 
@@ -81,7 +79,9 @@ export class CampaignService {
   /**
    * Start processing a campaign (consume estimated credits)
    */
-  static async startCampaign(campaignId: string) {
+  static async startCampaign(
+    campaignId: string
+  ): Promise<{ success: boolean; message: string }> {
     try {
       // Get campaign details
       const { data: campaign, error: campaignError } = await supabaseAdmin
@@ -98,7 +98,17 @@ export class CampaignService {
         throw new Error("Campaign is not in draft status");
       }
 
-      // Consume estimated credits
+      // Update campaign status
+      const { error: updateError } = await supabaseAdmin
+        .from("campaigns")
+        .update({
+          status: "in_progress",
+          credits_used: campaign.estimated_credits,
+          started_at: new Date().toISOString(),
+        })
+        .eq("id", campaignId);
+
+      // Consume estimated credits after status update
       if (campaign.estimated_credits > 0) {
         await CreditService.consumeCredits(
           campaign.business_id,
@@ -111,16 +121,6 @@ export class CampaignService {
           }
         );
       }
-
-      // Update campaign status using the database function
-      const { error: updateError } = await supabaseAdmin.rpc(
-        "update_campaign_status",
-        {
-          p_campaign_id: campaignId,
-          p_status: "in_progress",
-          p_credits_used: campaign.estimated_credits,
-        }
-      );
 
       if (updateError) {
         throw new Error(`Failed to start campaign: ${updateError.message}`);
@@ -136,7 +136,9 @@ export class CampaignService {
   /**
    * Complete a campaign (adjust credits if needed)
    */
-  static async completeCampaign(data: ProcessCampaignData) {
+  static async completeCampaign(
+    data: ProcessCampaignData
+  ): Promise<{ success: boolean; message: string }> {
     try {
       const {
         campaign_id,
@@ -190,16 +192,18 @@ export class CampaignService {
       }
 
       // Update campaign status and output
-      const { error: updateError } = await supabaseAdmin.rpc(
-        "update_campaign_status",
-        {
-          p_campaign_id: campaign_id,
-          p_status: "completed",
-          p_credits_used: actual_credits_used || campaign.credits_used,
-          p_output_urls: output_urls || null,
-          p_thumbnail_url: thumbnail_url || null,
-        }
-      );
+      const updateData: CampaignUpdate = {
+        status: "completed",
+        credits_used: actual_credits_used || campaign.credits_used,
+        output_urls: output_urls || undefined,
+        thumbnail_url: thumbnail_url || undefined,
+        completed_at: new Date().toISOString(),
+      };
+
+      const { error: updateError } = await supabaseAdmin
+        .from("campaigns")
+        .update(updateData)
+        .eq("id", campaign_id);
 
       if (updateError) {
         throw new Error(`Failed to complete campaign: ${updateError.message}`);
@@ -241,7 +245,10 @@ export class CampaignService {
   /**
    * Fail a campaign (refund credits if needed)
    */
-  static async failCampaign(campaignId: string, errorMessage?: string) {
+  static async failCampaign(
+    campaignId: string,
+    errorMessage?: string
+  ): Promise<{ success: boolean; message: string }> {
     try {
       // Get campaign details
       const { data: campaign, error: campaignError } = await supabaseAdmin
@@ -259,13 +266,10 @@ export class CampaignService {
       }
 
       // Update campaign status
-      const { error: updateError } = await supabaseAdmin.rpc(
-        "update_campaign_status",
-        {
-          p_campaign_id: campaignId,
-          p_status: "failed",
-        }
-      );
+      const { error: updateError } = await supabaseAdmin
+        .from("campaigns")
+        .update({ status: "failed" })
+        .eq("id", campaignId);
 
       if (updateError) {
         throw new Error(
@@ -316,7 +320,9 @@ export class CampaignService {
   /**
    * Cancel a campaign (refund credits if needed)
    */
-  static async cancelCampaign(campaignId: string) {
+  static async cancelCampaign(
+    campaignId: string
+  ): Promise<{ success: boolean; message: string }> {
     try {
       // Get campaign details
       const { data: campaign, error: campaignError } = await supabaseAdmin
@@ -334,13 +340,10 @@ export class CampaignService {
       }
 
       // Update campaign status
-      const { error: updateError } = await supabaseAdmin.rpc(
-        "update_campaign_status",
-        {
-          p_campaign_id: campaignId,
-          p_status: "cancelled",
-        }
-      );
+      const { error: updateError } = await supabaseAdmin
+        .from("campaigns")
+        .update({ status: "cancelled" })
+        .eq("id", campaignId);
 
       if (updateError) {
         throw new Error(`Failed to cancel campaign: ${updateError.message}`);
@@ -374,8 +377,8 @@ export class CampaignService {
    * Estimate credit costs based on campaign type and settings
    */
   private static estimateCredits(
-    campaignType: string,
-    settings?: Record<string, unknown>
+    campaignType: "video" | "image" | "script",
+    settings?: Json
   ): number {
     const baseCost =
       CREDIT_COSTS[campaignType as keyof typeof CREDIT_COSTS] || 1;
@@ -385,14 +388,27 @@ export class CampaignService {
 
     if (settings) {
       // Example: Higher quality settings cost more
-      if (settings.quality === "high") {
+
+      if (
+        typeof settings === "object" &&
+        "quality" in settings &&
+        settings.quality === "high"
+      ) {
         multiplier *= 1.5;
-      } else if (settings.quality === "premium") {
+      } else if (
+        typeof settings === "object" &&
+        "quality" in settings &&
+        settings.quality === "premium"
+      ) {
         multiplier *= 2;
       }
 
       // Example: Longer duration costs more for videos
-      if (campaignType === "video" && settings.duration) {
+      if (
+        campaignType === "video" &&
+        typeof settings === "object" &&
+        "duration" in settings
+      ) {
         const duration = parseInt(settings.duration as string);
         if (duration > 30) {
           multiplier *= 1.5;
@@ -402,7 +418,11 @@ export class CampaignService {
       }
 
       // Example: Higher resolution costs more for images
-      if (campaignType === "image" && settings.resolution) {
+      if (
+        campaignType === "image" &&
+        typeof settings === "object" &&
+        "resolution" in settings
+      ) {
         if (settings.resolution === "4k") {
           multiplier *= 1.5;
         } else if (settings.resolution === "8k") {

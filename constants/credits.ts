@@ -1,4 +1,9 @@
 export const CREDIT_COSTS = {
+  script: 1,
+  image: 2,
+  video: 10,
+  prompt: 1,
+  // Legacy naming for backward compatibility
   VIDEO_SCRIPT_GENERATION: 1,
   IMAGE_GENERATION: 2,
   VIDEO_GENERATION: 10,

@@ -4,6 +4,7 @@ import { CreditService } from "../services/creditService";
 import { env } from "../config/env";
 import { supabaseAdmin } from "../config/supabase";
 import { SUBSCRIPTION_PLANS } from "../config/credits";
+import { ApiResponse, SubscriptionHistory } from "../types/database";
 
 const stripe = new Stripe(env.STRIPE.SECRET_KEY, {
   apiVersion: "2025-07-30.basil",
@@ -73,7 +74,12 @@ export class WebhookController {
           console.log(`Unhandled event type: ${event.type}`);
       }
 
-      res.json({ success: true, received: true });
+      const response: ApiResponse<{ received: boolean }> = {
+        success: true,
+        data: { received: true },
+      };
+
+      res.json(response);
     } catch (error) {
       console.error("Error processing webhook:", error);
       res.status(500).json({

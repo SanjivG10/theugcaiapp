@@ -13,11 +13,10 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { SUBSCRIPTION_PLANS } from "@/constants/credits";
-import { API_ENDPOINTS } from "@/constants/urls";
 import { useAuth } from "@/contexts/AuthContext";
 import { useBusiness } from "@/hooks/useBusiness";
 import { zodResolver } from "@hookform/resolvers/zod";
-import axios from "axios";
+import { api } from "@/lib/api";
 import {
   Building2,
   Calendar,
@@ -88,12 +87,14 @@ export default function ProfilePage() {
 
   const fetchCredits = async () => {
     try {
-      const response = await axios.get(API_ENDPOINTS.CREDITS.GET);
-      if (response.data.success) {
-        setCurrentCredits(response.data.data.credits);
-        setSubscriptionPlan(response.data.data.subscription_plan);
-        setSubscriptionStatus(response.data.data.subscription_status);
-        setSubscriptionExpiry(response.data.data.subscription_expires_at);
+      const response = await api.getCredits();
+      if (response.success && response.data) {
+        // Type assertion since the server returns different structure than TypeScript types
+        const data = response.data;
+        setCurrentCredits(data.credits || 0);
+        setSubscriptionPlan(data.subscription_plan || "free");
+        setSubscriptionStatus(data.subscription_status || "active");
+        setSubscriptionExpiry(data.subscription_expires_at || null);
       }
     } catch (error) {
       console.error("Failed to fetch credits:", error);
@@ -139,12 +140,12 @@ export default function ProfilePage() {
   const handleManageBilling = async () => {
     try {
       const returnUrl = `${window.location.origin}/dashboard/profile`;
-      const response = await axios.post(API_ENDPOINTS.CREDITS.BILLING_PORTAL, {
+      const response = await api.createBillingPortalSession({
         returnUrl,
       });
 
-      if (response.data.success && response.data.data.url) {
-        window.location.href = response.data.data.url;
+      if (response.success && response.data?.portal_url) {
+        window.location.href = response.data.portal_url;
       } else {
         toast.error("Failed to open billing portal");
       }

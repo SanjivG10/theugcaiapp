@@ -17,10 +17,9 @@ import {
 } from "lucide-react";
 import { CreditDisplay } from "@/components/ui/credit-display";
 import { CreditPurchaseModal } from "@/components/ui/credit-purchase-modal";
-import { API_ENDPOINTS } from "@/constants/urls";
 import Image from "next/image";
 import toast from "react-hot-toast";
-import axios from "axios";
+import { api } from "@/lib/api";
 
 interface ImageGenerationProps {
   onNext: () => void;
@@ -51,10 +50,10 @@ export function ImageGeneration({ onNext, onPrev }: ImageGenerationProps) {
   React.useEffect(() => {
     const fetchCredits = async () => {
       try {
-        const response = await axios.get(API_ENDPOINTS.CREDITS.GET);
-        if (response.data.success) {
-          setCurrentCredits(response.data.data.credits);
-          setSubscriptionPlan(response.data.data.subscription_plan);
+        const response = await api.getCredits();
+        if (response.success) {
+          setCurrentCredits(response.data.credits);
+          setSubscriptionPlan(response.data.subscription_plan);
         }
       } catch (error) {
         console.error("Failed to fetch credits:", error);
@@ -118,11 +117,9 @@ export function ImageGeneration({ onNext, onPrev }: ImageGenerationProps) {
 
     // Check credits before generating
     try {
-      const creditCheckResponse = await axios.post(API_ENDPOINTS.CREDITS.CHECK, {
-        action: "IMAGE_GENERATION"
-      });
+      const creditCheckResponse = await api.checkCredits("IMAGE_GENERATION");
       
-      if (!creditCheckResponse.data.data.hasSufficientCredits) {
+      if (!creditCheckResponse.data.hasSufficientCredits) {
         setShowCreditModal(true);
         return;
       }
@@ -152,13 +149,10 @@ export function ImageGeneration({ onNext, onPrev }: ImageGenerationProps) {
       
       // Consume credits for image generation
       try {
-        await axios.post("/api/credits/consume", {
-          action: "IMAGE_GENERATION",
-          metadata: {
-            campaign_id: state.campaignId,
-            scene_number: sceneNumber,
-            prompt: scene.imagePrompt || `${scene.scriptText} featuring the product`
-          }
+        await api.consumeCredits("IMAGE_GENERATION", {
+          campaign_id: state.campaignId,
+          scene_number: sceneNumber,
+          prompt: scene.imagePrompt || `${scene.scriptText} featuring the product`
         });
         setCurrentCredits(prev => prev - 2); // Update local state (2 credits for image generation)
       } catch (error) {
@@ -501,9 +495,9 @@ export function ImageGeneration({ onNext, onPrev }: ImageGenerationProps) {
           // Refresh credits after purchase
           const fetchCredits = async () => {
             try {
-              const response = await axios.get(API_ENDPOINTS.CREDITS.GET);
-              if (response.data.success) {
-                setCurrentCredits(response.data.data.credits);
+              const response = await api.getCredits();
+              if (response.success) {
+                setCurrentCredits(response.data.credits);
               }
             } catch (error) {
               console.error("Failed to fetch credits:", error);

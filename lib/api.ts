@@ -1,107 +1,48 @@
 import axios, { AxiosInstance, AxiosResponse } from "axios";
 import { ENVS } from "@/constants/envs";
-import { User } from "@/types/auth";
+import { URLS } from "@/constants/urls";
 import {
-  BusinessData,
+  ApiResponse,
+  AuthResponse,
+  SignupRequest,
+  LoginRequest,
+  ResetPasswordRequest,
+  User,
+  UpdateUserRequest,
+  DashboardData,
+  SubscriptionData,
+  UpdateSubscriptionRequest,
+  Business,
   BusinessOnboardingData,
   OnboardingProgress,
   OnboardingStepData,
-} from "@/types/business";
-import { URLS } from "@/constants/urls";
-
-export interface ApiResponse<T = unknown> {
-  success: boolean;
-  message: string;
-  data?: T;
-  error?: string;
-}
-
-// API Request/Response Types
-export interface AuthResponse {
-  success: boolean;
-  message: string;
-  user?: User;
-  token?: string;
-  access_token?: string;
-  refresh_token?: string;
-}
-
-export interface SignupRequest {
-  email: string;
-  password: string;
-  first_name?: string;
-  last_name?: string;
-}
-
-export interface LoginRequest {
-  email: string;
-  password: string;
-}
-
-export interface ResetPasswordRequest {
-  access_token: string;
-  password: string;
-}
-
-export interface DashboardData {
-  stats: {
-    total_campaigns: number;
-    campaigns_this_month: number;
-    active_campaigns: number;
-    campaigns_this_week: number;
-  };
-  recent_campaigns: Array<{
-    id: string;
-    title: string;
-    created_at: string;
-    status: string;
-  }>;
-  usage: {
-    current_plan: string;
-    campaigns_used: number;
-    campaigns_limit: number;
-  };
-}
-
-export interface SubscriptionData {
-  id: string;
-  plan_name: string;
-  status: string;
-  monthly_video_credits: number;
-  used_video_credits: number;
-  current_period_start: string;
-  current_period_end: string;
-}
-
-export interface UpdateUserRequest {
-  first_name?: string;
-  last_name?: string;
-  email?: string;
-  phone?: string;
-  timezone?: string;
-}
-
-export interface UpdateSubscriptionRequest {
-  plan_id?: string;
-  billing_cycle?: "monthly" | "yearly";
-  auto_renew?: boolean;
-}
-
-export interface FeedbackData {
-  name: string;
-  email: string;
-  subject: string;
-  message: string;
-  feedback_type:
-    | "bug_report"
-    | "feature_request"
-    | "general_feedback"
-    | "support_request";
-  priority: "low" | "medium" | "high" | "urgent";
-}
+  CreditBalance,
+  CreditHistoryResponse,
+  CreditAnalytics,
+  CheckCreditsRequest,
+  CheckCreditsResponse,
+  ConsumeCreditsRequest,
+  ConsumeCreditsResponse,
+  CreditPurchaseRequest,
+  CreditPurchaseResponse,
+  SubscriptionSessionRequest,
+  SubscriptionSessionResponse,
+  BillingPortalRequest,
+  BillingPortalResponse,
+  SubscriptionPlan,
+  Campaign,
+  CreateCampaignRequest,
+  UpdateCampaignRequest,
+  CampaignStats,
+  CampaignAnalytics,
+  CampaignsResponse,
+  FeedbackData,
+  FeedbackResponse,
+  HealthCheckResponse,
+} from "@/types/api";
 
 class ApiClient {
-  private client: AxiosInstance;
+  public client: AxiosInstance;
 
   constructor() {
     this.client = axios.create({
@@ -253,14 +194,14 @@ class ApiClient {
   }
 
   // Business endpoints
-  async getBusiness(): Promise<ApiResponse<BusinessData>> {
+  async getBusiness(): Promise<ApiResponse<Business>> {
     const response = await this.client.get("/api/business");
     return response.data;
   }
 
   async updateBusiness(
-    data: Partial<BusinessData>
-  ): Promise<ApiResponse<{ business: BusinessData }>> {
+    data: Partial<Business>
+  ): Promise<ApiResponse<{ business: Business }>> {
     const response = await this.client.put("/api/business", data);
     return response.data;
   }
@@ -295,7 +236,7 @@ class ApiClient {
   async completeOnboarding(
     businessData?: BusinessOnboardingData
   ): Promise<
-    ApiResponse<{ progress: OnboardingProgress; business?: BusinessData }>
+    ApiResponse<{ progress: OnboardingProgress; business?: Business }>
   > {
     const response = await this.client.post(
       "/api/business/onboarding/complete",
@@ -304,8 +245,143 @@ class ApiClient {
     return response.data;
   }
 
+  // Credits endpoints
+  async getCredits(): Promise<ApiResponse<CreditBalance>> {
+    const response = await this.client.get("/api/credits");
+    return response.data;
+  }
+
+  async getCreditHistory(
+    limit?: number,
+    offset?: number
+  ): Promise<ApiResponse<CreditHistoryResponse>> {
+    const params = new URLSearchParams();
+    if (limit) params.append("limit", limit.toString());
+    if (offset) params.append("offset", offset.toString());
+    const response = await this.client.get(
+      `/api/credits/history?${params.toString()}`
+    );
+    return response.data;
+  }
+
+  async getCreditAnalytics(
+    days?: number
+  ): Promise<ApiResponse<CreditAnalytics>> {
+    const params = days ? `?days=${days}` : "";
+    const response = await this.client.get(`/api/credits/analytics${params}`);
+    return response.data;
+  }
+
+  async checkCredits(
+    data: CheckCreditsRequest
+  ): Promise<ApiResponse<CheckCreditsResponse>> {
+    const response = await this.client.post("/api/credits/check", data);
+    return response.data;
+  }
+
+  async consumeCredits(
+    data: ConsumeCreditsRequest
+  ): Promise<ApiResponse<ConsumeCreditsResponse>> {
+    const response = await this.client.post("/api/credits/consume", data);
+    return response.data;
+  }
+
+  async createCreditPurchaseSession(
+    data: CreditPurchaseRequest
+  ): Promise<ApiResponse<CreditPurchaseResponse>> {
+    const response = await this.client.post("/api/credits/purchase", data);
+    return response.data;
+  }
+
+  async createSubscriptionSession(
+    data: SubscriptionSessionRequest
+  ): Promise<ApiResponse<SubscriptionSessionResponse>> {
+    const response = await this.client.post("/api/credits/subscription", data);
+    return response.data;
+  }
+
+  async createBillingPortalSession(
+    data: BillingPortalRequest
+  ): Promise<ApiResponse<BillingPortalResponse>> {
+    const response = await this.client.post(
+      "/api/credits/billing-portal",
+      data
+    );
+    return response.data;
+  }
+
+  async getSubscriptionPlans(): Promise<ApiResponse<SubscriptionPlan[]>> {
+    const response = await this.client.get("/api/credits/plans");
+    return response.data;
+  }
+
+  // Campaign endpoints
+  async getCampaigns(page?: number): Promise<ApiResponse<CampaignsResponse>> {
+    const params = new URLSearchParams();
+    if (page) params.append("page", page.toString());
+    const response = await this.client.get(
+      `/api/campaigns?${params.toString()}`
+    );
+    return response.data;
+  }
+
+  async createCampaign(
+    data: CreateCampaignRequest
+  ): Promise<ApiResponse<Campaign>> {
+    const response = await this.client.post("/api/campaigns", data);
+    return response.data;
+  }
+
+  async getCampaign(id: string): Promise<ApiResponse<Campaign>> {
+    const response = await this.client.get(`/api/campaigns/${id}`);
+    return response.data;
+  }
+
+  async updateCampaign(
+    id: string,
+    data: UpdateCampaignRequest
+  ): Promise<ApiResponse<Campaign>> {
+    const response = await this.client.put(`/api/campaigns/${id}`, data);
+    return response.data;
+  }
+
+  async deleteCampaign(id: string): Promise<ApiResponse<void>> {
+    const response = await this.client.delete(`/api/campaigns/${id}`);
+    return response.data;
+  }
+
+  async getCampaignStats(): Promise<ApiResponse<CampaignStats>> {
+    const response = await this.client.get("/api/campaigns/stats");
+    return response.data;
+  }
+
+  async getCampaignAnalytics(): Promise<ApiResponse<CampaignAnalytics>> {
+    const response = await this.client.get("/api/campaigns/analytics");
+    return response.data;
+  }
+
+  async startCampaign(id: string): Promise<ApiResponse<Campaign>> {
+    const response = await this.client.post(`/api/campaigns/${id}/start`);
+    return response.data;
+  }
+
+  async completeCampaign(id: string): Promise<ApiResponse<Campaign>> {
+    const response = await this.client.post(`/api/campaigns/${id}/complete`);
+    return response.data;
+  }
+
+  async failCampaign(id: string): Promise<ApiResponse<Campaign>> {
+    const response = await this.client.post(`/api/campaigns/${id}/fail`);
+    return response.data;
+  }
+
+  async cancelCampaign(id: string): Promise<ApiResponse<Campaign>> {
+    const response = await this.client.post(`/api/campaigns/${id}/cancel`);
+    return response.data;
+  }
+
   // Health check
-  async health(): Promise<ApiResponse<{ status: string; timestamp: string }>> {
+  async health(): Promise<ApiResponse<HealthCheckResponse>> {
     const response = await this.client.get("/health");
     return response.data;
   }
@@ -313,10 +389,14 @@ class ApiClient {
   // Feedback endpoints
   async submitFeedback(
     data: FeedbackData
-  ): Promise<ApiResponse<{ id: string; status: string }>> {
+  ): Promise<ApiResponse<FeedbackResponse>> {
     const response = await this.client.post("/api/feedback", data);
     return response.data;
   }
 }
 
+// Create and export the API client instance
 export const api = new ApiClient();
+
+// Also export the axios instance for direct use if needed
+export const axiosInstance = api.client;

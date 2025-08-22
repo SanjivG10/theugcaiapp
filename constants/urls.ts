@@ -13,6 +13,7 @@ export const URLS = {
   DASHBOARD: {
     HOME: "/dashboard",
     CAMPAIGNS: "/dashboard/campaigns",
+    CAMPAIGNS_QUERY_CREATE: "/dashboard/campaigns?create=true",
     TEMPLATES: "/dashboard/templates",
     ANALYTICS: "/dashboard/analytics",
     SETTINGS: "/dashboard/settings",
@@ -23,9 +24,9 @@ export const URLS = {
     MANAGE: "/business/manage",
   },
   CAMPAIGN: {
-    CREATE: "/campaign/create",
-    EDIT: (id: string) => `/campaign/edit/${id}`,
-    VIEW: (id: string) => `/campaign/${id}`,
+    CREATE: "/dashboard/campaigns/create",
+    EDIT: (id: string) => `/dashboard/campaigns/${id}/edit`,
+    VIEW: (id: string) => `/dashboard/campaigns/${id}`,
   },
 } as const;
 

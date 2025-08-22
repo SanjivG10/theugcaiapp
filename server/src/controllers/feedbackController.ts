@@ -1,5 +1,6 @@
 import { supabaseAdmin } from "../config/supabase";
 import { Request, Response } from "express";
+import { Feedback, FeedbackInsert, ApiResponse } from "../types/database";
 
 export interface FeedbackData {
   name: string;
@@ -58,19 +59,21 @@ export const submitFeedback = async (req: Request, res: Response) => {
     }
 
     // Insert feedback into database
+    const insertData: FeedbackInsert = {
+      user_id: userId,
+      business_id: businessId,
+      name,
+      email,
+      subject,
+      message,
+      feedback_type,
+      priority: priority || "medium",
+      status: "pending",
+    };
+
     const { data, error } = await supabaseAdmin
       .from("feedback")
-      .insert({
-        user_id: userId,
-        business_id: businessId,
-        name,
-        email,
-        subject,
-        message,
-        feedback_type,
-        priority: priority || "medium",
-        status: "pending",
-      })
+      .insert(insertData)
       .select()
       .single();
 
@@ -85,14 +88,16 @@ export const submitFeedback = async (req: Request, res: Response) => {
     // TODO: Send notification email to support team
     // TODO: Send confirmation email to user
 
-    return res.status(201).json({
+    const response: ApiResponse<{ id: string; status: string | null }> = {
       success: true,
       message: "Feedback submitted successfully",
       data: {
         id: data.id,
-        status: data.status,
+        status: data.status || "pending",
       },
-    });
+    };
+
+    return res.status(201).json(response);
   } catch (error) {
     console.error("Error in submitFeedback:", error);
     return res.status(500).json({

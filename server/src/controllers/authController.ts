@@ -1,7 +1,12 @@
 import { Request, Response } from "express";
-import { AuthService } from "../services/authService";
-import { LoginRequest, SignupRequest, AuthResponse } from "../types/auth";
 import { asyncHandler, ValidationError } from "../middleware/errorHandler";
+import { AuthService } from "../services/authService";
+import {
+  AuthResponse,
+  AuthUser,
+  LoginRequest,
+  SignupRequest,
+} from "../types/auth";
 
 const authService = new AuthService();
 
@@ -16,7 +21,7 @@ export const signup = asyncHandler(
       message:
         "Account created successfully. Please check your email for verification.",
       data: {
-        user: result.user,
+        user: result.user as AuthUser,
         token: result.token,
       },
     };
@@ -36,7 +41,7 @@ export const login = asyncHandler(
         success: true,
         message: "Login successful",
         data: {
-          user: result.user,
+          user: result.user as AuthUser,
           token: result.token,
         },
       };
@@ -114,7 +119,7 @@ export const getProfile = asyncHandler(
       success: true,
       message: "Profile retrieved successfully",
       data: {
-        user,
+        user: user as AuthUser,
       },
     };
 
@@ -144,7 +149,7 @@ export const updateProfile = asyncHandler(
       success: true,
       message: "Profile updated successfully",
       data: {
-        user,
+        user: user as AuthUser,
       },
     };
 
@@ -170,14 +175,14 @@ export const refreshToken = asyncHandler(
     const token = authService.generateToken({
       userId: user.id,
       email: user.email,
-      role: user.role,
+      role: user.role || "user",
     });
 
     const response: AuthResponse = {
       success: true,
       message: "Token refreshed successfully",
       data: {
-        user,
+        user: user as AuthUser,
         token,
       },
     };

@@ -1,9 +1,11 @@
 # AI UGC Video Platform - Backend Server
 
 ## Overview
+
 Node.js + Express + TypeScript backend server for the AI UGC video platform. This server handles API requests, manages business logic, integrates with external AI video generation APIs, and communicates with Supabase database.
 
 ## Tech Stack
+
 - **Runtime**: Node.js (latest LTS)
 - **Framework**: Express.js (latest)
 - **Language**: TypeScript (latest)
@@ -15,6 +17,7 @@ Node.js + Express + TypeScript backend server for the AI UGC video platform. Thi
 ## Development Guidelines
 
 ### General Rules
+
 - Always use latest versions of dependencies
 - No test case implementation required
 - Use TypeScript strict mode
@@ -23,6 +26,7 @@ Node.js + Express + TypeScript backend server for the AI UGC video platform. Thi
 - Use async/await for all asynchronous operations
 
 ### Project Structure
+
 ```
 server/
 ├── src/
@@ -41,6 +45,7 @@ server/
 ```
 
 ### Key Dependencies to Install
+
 ```bash
 # Core dependencies
 npm init -y
@@ -64,6 +69,7 @@ npm install -D @types/multer
 ```
 
 ### Environment Variables
+
 ```env
 # Server Configuration
 NODE_ENV=development
@@ -88,6 +94,7 @@ FRONTEND_URL=http://localhost:3000
 ```
 
 ### Scripts Configuration (package.json)
+
 ```json
 {
   "scripts": {
@@ -103,6 +110,7 @@ FRONTEND_URL=http://localhost:3000
 ### Core Features to Implement
 
 #### 1. Authentication & Authorization
+
 - JWT-based authentication with Supabase
 - User registration and login endpoints
 - Protected route middleware
@@ -110,12 +118,14 @@ FRONTEND_URL=http://localhost:3000
 - Password reset functionality
 
 #### 2. User Management
+
 - User profile CRUD operations
 - Business account management
 - Subscription status tracking
 - Usage quota management
 
 #### 3. Video Generation API Integration
+
 - Multiple AI video provider integrations
 - Video generation request handling
 - Status tracking and webhooks
@@ -123,6 +133,7 @@ FRONTEND_URL=http://localhost:3000
 - Custom prompt processing
 
 #### 4. Asset Management
+
 - Video file upload and storage
 - Metadata management
 - Video processing status tracking
@@ -130,6 +141,7 @@ FRONTEND_URL=http://localhost:3000
 - Thumbnail generation
 
 #### 5. Billing & Subscription Management
+
 - Usage tracking and metering
 - Subscription plan management
 - Payment webhook handling
@@ -137,6 +149,7 @@ FRONTEND_URL=http://localhost:3000
 - Billing history
 
 #### 6. Analytics & Reporting
+
 - Video generation analytics
 - User engagement metrics
 - Business performance tracking
@@ -145,6 +158,7 @@ FRONTEND_URL=http://localhost:3000
 ### API Endpoints Structure
 
 #### Authentication Routes
+
 ```
 POST /api/auth/register
 POST /api/auth/login
@@ -155,6 +169,7 @@ POST /api/auth/reset-password
 ```
 
 #### User Routes
+
 ```
 GET /api/users/profile
 PUT /api/users/profile
@@ -163,6 +178,7 @@ PUT /api/users/subscription
 ```
 
 #### Video Generation Routes
+
 ```
 POST /api/videos/generate
 GET /api/videos/:id/status
@@ -173,6 +189,7 @@ POST /api/videos/:id/download
 ```
 
 #### Template Routes
+
 ```
 GET /api/templates
 GET /api/templates/:id
@@ -182,6 +199,7 @@ DELETE /api/templates/:id (admin only)
 ```
 
 #### Analytics Routes
+
 ```
 GET /api/analytics/dashboard
 GET /api/analytics/usage
@@ -189,13 +207,16 @@ GET /api/analytics/videos
 ```
 
 ### Database Schema Considerations
+
 Use Supabase's built-in features:
+
 - Row Level Security (RLS) for data protection
 - Real-time subscriptions for status updates
 - Built-in authentication system
 - Automatic API generation
 
 ### Key Supabase Tables
+
 - users (extends auth.users)
 - businesses
 - subscriptions
@@ -205,6 +226,7 @@ Use Supabase's built-in features:
 - analytics_events
 
 ### Error Handling
+
 - Standardized error response format
 - Proper HTTP status codes
 - Detailed error logging
@@ -212,6 +234,7 @@ Use Supabase's built-in features:
 - Input validation using Joi
 
 ### Security Best Practices
+
 - CORS configuration
 - Helmet.js for security headers
 - Input sanitization
@@ -220,6 +243,7 @@ Use Supabase's built-in features:
 - API key rotation strategy
 
 ### Development Commands
+
 ```bash
 npm run dev          # Start development server with hot reload
 npm run build        # Compile TypeScript to JavaScript
@@ -229,6 +253,7 @@ npm run clean        # Clean build directory
 ```
 
 ### External API Integration Guidelines
+
 - Implement retry logic with exponential backoff
 - Proper error handling for API failures
 - Rate limiting compliance
@@ -236,14 +261,32 @@ npm run clean        # Clean build directory
 - API key rotation and management
 
 ### Logging Strategy
+
 - Use Winston for structured logging
 - Log levels: error, warn, info, debug
 - Separate log files for different components
 - Include correlation IDs for request tracking
 
 ### Deployment Considerations
+
 - Environment-specific configurations
 - Health check endpoints
 - Graceful shutdown handling
 - Process management with PM2
 - Container-ready configuration
+
+## Database info
+
+We have our database on database.types.ts reference that if you have to.
+In order to download latest database schema, use yarn types inside server folder
+Do not use path import like @/**.ts, you have to use relative path import like "../../**"
+No need to declare user object in request, as we have that declared in auth middleware like this.
+declare module "express" {
+interface Request {
+user?: {
+id: string;
+email: string;
+role: string;
+};
+}
+}

@@ -8,7 +8,8 @@
     "build": "tsc",
     "start": "node dist/app.js",
     "lint": "eslint src/**/*.ts",
-    "clean": "rm -rf dist"
+    "clean": "rm -rf dist",
+    "types": "npx supabase gen types typescript --project-id 'bfyljtauivakkndryvdl' --schema public > database.types.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.1",

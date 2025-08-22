@@ -18,8 +18,7 @@ import { CreditPurchaseModal } from "@/components/ui/credit-purchase-modal";
 import Image from "next/image";
 import toast from "react-hot-toast";
 import { useState as useCreditsState } from "react";
-import { API_ENDPOINTS } from "@/constants/urls";
-import axios from "axios";
+import { api } from "@/lib/api";
 
 interface ScriptGenerationProps {
   onNext: () => void;
@@ -48,10 +47,10 @@ export function ScriptGeneration({ onNext, onPrev }: ScriptGenerationProps) {
   React.useEffect(() => {
     const fetchCredits = async () => {
       try {
-        const response = await axios.get(API_ENDPOINTS.CREDITS.GET);
-        if (response.data.success) {
-          setCurrentCredits(response.data.data.credits);
-          setSubscriptionPlan(response.data.data.subscription_plan);
+        const response = await api.getCredits();
+        if (response.success) {
+          setCurrentCredits(response.data.credits);
+          setSubscriptionPlan(response.data.subscription_plan);
         }
       } catch (error) {
         console.error("Failed to fetch credits:", error);
@@ -64,11 +63,9 @@ export function ScriptGeneration({ onNext, onPrev }: ScriptGenerationProps) {
   const generateScript = useCallback(async () => {
     // Check credits before generating
     try {
-      const creditCheckResponse = await axios.post(API_ENDPOINTS.CREDITS.CHECK, {
-        action: "VIDEO_SCRIPT_GENERATION"
-      });
+      const creditCheckResponse = await api.checkCredits("VIDEO_SCRIPT_GENERATION");
       
-      if (!creditCheckResponse.data.data.hasSufficientCredits) {
+      if (!creditCheckResponse.data.hasSufficientCredits) {
         setShowCreditModal(true);
         return;
       }
@@ -106,14 +103,11 @@ export function ScriptGeneration({ onNext, onPrev }: ScriptGenerationProps) {
       
       // Consume credits for script generation
       try {
-        await axios.post("/api/credits/consume", {
-          action: "VIDEO_SCRIPT_GENERATION",
-          metadata: {
-            campaign_id: state.campaignId,
-            scenes: state.numberOfScenes,
-            tone: scriptSettings.tone,
-            style: scriptSettings.style
-          }
+        await api.consumeCredits("VIDEO_SCRIPT_GENERATION", {
+          campaign_id: state.campaignId,
+          scenes: state.numberOfScenes,
+          tone: scriptSettings.tone,
+          style: scriptSettings.style
         });
         setCurrentCredits(prev => prev - 1); // Update local state
       } catch (error) {
@@ -458,9 +452,9 @@ export function ScriptGeneration({ onNext, onPrev }: ScriptGenerationProps) {
           // Refresh credits after purchase
           const fetchCredits = async () => {
             try {
-              const response = await axios.get(API_ENDPOINTS.CREDITS.GET);
-              if (response.data.success) {
-                setCurrentCredits(response.data.data.credits);
+              const response = await api.getCredits();
+              if (response.success) {
+                setCurrentCredits(response.data.credits);
               }
             } catch (error) {
               console.error("Failed to fetch credits:", error);
