@@ -308,7 +308,7 @@ export interface Campaign {
   id: string;
   name: string;
   description?: string;
-  campaign_type?: string;
+  campaign_type?: "video" | "image" | "script";
   prompt?: string;
   status?: "draft" | "in_progress" | "completed" | "failed" | "cancelled";
   current_step?: number;
@@ -332,7 +332,7 @@ export interface Campaign {
 export interface CreateCampaignRequest {
   name: string;
   description?: string;
-  campaign_type?: string;
+  campaign_type?: "video" | "image" | "script";
   prompt?: string;
   settings?: Json;
   estimated_credits?: number;
@@ -342,9 +342,12 @@ export interface CreateCampaignRequest {
 export interface UpdateCampaignRequest {
   name?: string;
   description?: string;
+  campaign_type?: "video" | "image" | "script";
   prompt?: string;
   settings?: Json;
   status?: "draft" | "in_progress" | "completed" | "failed" | "cancelled";
+  current_step?: number;
+  step_data?: Json;
 }
 
 export interface CampaignStats {
@@ -376,8 +379,8 @@ export interface CampaignAnalytics {
   };
 }
 
-export interface CampaignsResponse {
-  campaigns: Campaign[];
+export interface PaginatedResponse<T> {
+  data: T[];
   pagination: {
     page: number;
     limit: number;
@@ -385,6 +388,14 @@ export interface CampaignsResponse {
     totalPages: number;
   };
 }
+
+type CampaignWithBusiness = Campaign & {
+  businesses: {
+    name: string;
+  } | null;
+};
+
+export type CampaignsResponse = PaginatedResponse<CampaignWithBusiness>;
 
 // ============================================================================
 // FEEDBACK ENDPOINTS

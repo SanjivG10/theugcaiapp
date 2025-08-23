@@ -15,8 +15,9 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { ArrowRight, Save, Loader2 } from "lucide-react";
+import { Campaign } from "@/types/api";
 
-const basicsSchema = z.object({
+const setupSchema = z.object({
   name: z
     .string()
     .min(1, "Campaign name is required")
@@ -27,37 +28,38 @@ const basicsSchema = z.object({
     .optional(),
 });
 
-type BasicsFormData = z.infer<typeof basicsSchema>;
+type SetupFormData = z.infer<typeof setupSchema>;
 
-import { Campaign } from "@/types/api";
-
-interface CampaignStepBasicsProps {
+interface CampaignSetupProps {
   campaign: Campaign;
+  stepData: Record<string, unknown>;
   onNext: (data: Record<string, unknown>) => Promise<void>;
   onSave: (data: Record<string, unknown>) => Promise<void>;
   saving: boolean;
 }
 
-export function CampaignStepBasics({
+export function CampaignSetup({
   campaign,
+  stepData,
   onNext,
   onSave,
   saving,
-}: CampaignStepBasicsProps) {
+}: CampaignSetupProps) {
   const {
     register,
     handleSubmit,
     formState: { errors, isDirty },
     watch,
-  } = useForm<BasicsFormData>({
-    resolver: zodResolver(basicsSchema),
+  } = useForm<SetupFormData>({
+    resolver: zodResolver(setupSchema),
     defaultValues: {
-      name: campaign.name,
-      description: campaign.description || "",
+      name: campaign.name || (stepData.name as string) || "",
+      description:
+        campaign.description || (stepData.description as string) || "",
     },
   });
 
-  const handleNext = async (data: BasicsFormData) => {
+  const handleNext = async (data: SetupFormData) => {
     await onNext({
       name: data.name,
       description: data.description,
@@ -76,10 +78,10 @@ export function CampaignStepBasics({
     <div className="space-y-6">
       <Card>
         <CardHeader>
-          <CardTitle>Campaign Basics</CardTitle>
+          <CardTitle>Campaign Setup</CardTitle>
           <CardDescription>
-            Set up the fundamental information for your campaign. You can always
-            come back and edit these details later.
+            Set up the fundamental information for your AI UGC video campaign.
+            You can always come back and edit these details later.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -149,7 +151,7 @@ export function CampaignStepBasics({
 
               <Button type="submit" disabled={saving}>
                 <ArrowRight className="mr-2 h-4 w-4" />
-                Continue to Content Type
+                Continue to Script Generation
               </Button>
             </div>
           </form>
@@ -158,9 +160,13 @@ export function CampaignStepBasics({
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-sm">Tips for Better Campaigns</CardTitle>
+          <CardTitle className="text-sm">Campaign Tips</CardTitle>
         </CardHeader>
         <CardContent className="text-sm text-muted-foreground space-y-2">
+          <p>
+            • Use specific, descriptive names that include the content type or
+            purpose
+          </p>
           <p>• Include the target audience or platform in your description</p>
           <p>• Mention the main goal or call-to-action you want to achieve</p>
           <p>

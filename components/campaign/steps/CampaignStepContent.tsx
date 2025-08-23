@@ -35,13 +35,10 @@ const contentSchema = z.object({
 
 type ContentFormData = z.infer<typeof contentSchema>;
 
+import { Campaign } from "@/types/api";
+
 interface CampaignStepContentProps {
-  campaign: {
-    id: string;
-    campaign_type?: "video" | "image" | "script";
-    prompt?: string;
-    settings: Record<string, unknown>;
-  };
+  campaign: Campaign;
   stepData: Record<string, unknown>;
   onNext: (data: Record<string, unknown>) => Promise<void>;
   onPrevious: () => Promise<void>;
@@ -69,12 +66,12 @@ export function CampaignStepContent({
     resolver: zodResolver(contentSchema),
     defaultValues: {
       prompt: campaign.prompt || (stepData.prompt as string) || "",
-      style: (campaign.settings?.style as string) || (stepData.style as string) || "",
-      duration: (campaign.settings?.duration as string) || (stepData.duration as string) || "",
-      resolution: (campaign.settings?.resolution as string) || (stepData.resolution as string) || "",
-      tone: (campaign.settings?.tone as string) || (stepData.tone as string) || "",
-      target_audience: (campaign.settings?.target_audience as string) || (stepData.target_audience as string) || "",
-      additional_instructions: (campaign.settings?.additional_instructions as string) || (stepData.additional_instructions as string) || "",
+      style: ((campaign.settings as Record<string, unknown>)?.style as string) || (stepData.style as string) || "",
+      duration: ((campaign.settings as Record<string, unknown>)?.duration as string) || (stepData.duration as string) || "",
+      resolution: ((campaign.settings as Record<string, unknown>)?.resolution as string) || (stepData.resolution as string) || "",
+      tone: ((campaign.settings as Record<string, unknown>)?.tone as string) || (stepData.tone as string) || "",
+      target_audience: ((campaign.settings as Record<string, unknown>)?.target_audience as string) || (stepData.target_audience as string) || "",
+      additional_instructions: ((campaign.settings as Record<string, unknown>)?.additional_instructions as string) || (stepData.additional_instructions as string) || "",
     },
   });
 

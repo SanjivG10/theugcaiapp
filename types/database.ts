@@ -78,7 +78,7 @@ export interface Campaign {
   id: string;
   name: string;
   description?: string;
-  campaign_type?: string;
+  campaign_type?: "video" | "image" | "script";
   prompt?: string;
   status?: "draft" | "in_progress" | "completed" | "failed" | "cancelled";
   current_step?: number;
@@ -278,7 +278,7 @@ export interface BusinessInsert {
 export interface CampaignInsert {
   name: string;
   description?: string;
-  campaign_type?: string;
+  campaign_type?: "video" | "image" | "script";
   prompt?: string;
   status?: "draft" | "in_progress" | "completed" | "failed" | "cancelled";
   current_step?: number;
@@ -426,7 +426,7 @@ export interface BusinessUpdate {
 export interface CampaignUpdate {
   name?: string;
   description?: string;
-  campaign_type?: string;
+  campaign_type?: "video" | "image" | "script";
   prompt?: string;
   status?: "draft" | "in_progress" | "completed" | "failed" | "cancelled";
   current_step?: number;

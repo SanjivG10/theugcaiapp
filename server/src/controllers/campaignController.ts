@@ -1,6 +1,13 @@
 import { Request, Response } from "express";
 import { CampaignService } from "../services/campaignService";
-import { Campaign, CampaignInsert, CampaignUpdate, ApiResponse, PaginatedResponse } from "../types/database";
+import {
+  Campaign,
+  CampaignInsert,
+  CampaignUpdate,
+  ApiResponse,
+  PaginatedResponse,
+  Json,
+} from "../types/database";
 import { z } from "zod";
 import { supabaseAdmin } from "../config/supabase";
 
@@ -34,7 +41,7 @@ const updateCampaignSchema = z.object({
   credits_used: z.number().int().min(0).optional(),
   estimated_credits: z.number().int().min(0).optional(),
   metadata: z.record(z.any(), z.any()).optional(),
-  current_step: z.number().int().min(1).max(4).optional(),
+  current_step: z.number().int().min(1).max(7).optional(),
   step_data: z.record(z.any(), z.any()).optional(),
 });
 
@@ -133,14 +140,14 @@ export class CampaignController {
         });
       }
 
+      console.log({
+        userId,
+        id,
+      });
+
       const { data: campaign, error } = await supabaseAdmin
         .from("campaigns")
-        .select(
-          `
-          *,
-          businesses!inner(name, id)
-        `
-        )
+        .select("*")
         .eq("id", id)
         .eq("user_id", userId)
         .single();
@@ -148,7 +155,7 @@ export class CampaignController {
       if (error || !campaign) {
         return res.status(404).json({
           success: false,
-          message: "Campaign not found",
+          message: error?.message || "Campaign not found",
         });
       }
 
@@ -189,13 +196,13 @@ export class CampaignController {
       const campaignData = validation.data;
 
       // Get user's business
-      const { data: businessUser, error: businessError } = await supabaseAdmin
-        .from("business_users")
-        .select("business_id")
+      const { data: business, error: businessError } = await supabaseAdmin
+        .from("businesses")
+        .select("id")
         .eq("user_id", userId)
         .single();
 
-      if (businessError || !businessUser) {
+      if (businessError || !business) {
         return res.status(404).json({
           success: false,
           message: "Business not found",
@@ -205,7 +212,7 @@ export class CampaignController {
       // Create campaign using service
       const campaign = await CampaignService.createCampaign({
         ...campaignData,
-        business_id: businessUser.business_id,
+        business_id: business.id,
         user_id: userId,
       });
 

@@ -25,7 +25,6 @@ export const URLS = {
   },
   CAMPAIGN: {
     CREATE: "/dashboard/campaigns/create",
-    EDIT: (id: string) => `/dashboard/campaigns/${id}/edit`,
     VIEW: (id: string) => `/dashboard/campaigns/${id}`,
   },
 } as const;

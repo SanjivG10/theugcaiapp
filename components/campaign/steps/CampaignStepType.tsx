@@ -11,16 +11,22 @@ import {
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { CREDIT_COSTS } from "@/constants/credits";
-import { ArrowLeft, ArrowRight, Save, Loader2, Video, Image, FileText, Zap } from "lucide-react";
+import {
+  ArrowLeft,
+  ArrowRight,
+  Save,
+  Loader2,
+  Video,
+  Image,
+  FileText,
+  Zap,
+} from "lucide-react";
+import { Campaign } from "@/types/api";
 
 type CampaignType = "video" | "image" | "script";
 
 interface CampaignStepTypeProps {
-  campaign: {
-    id: string;
-    campaign_type?: CampaignType;
-    current_step: number;
-  };
+  campaign: Campaign;
   stepData: Record<string, unknown>;
   onNext: (data: Record<string, unknown>) => Promise<void>;
   onPrevious: () => Promise<void>;
@@ -33,8 +39,14 @@ const contentTypes = [
     type: "video" as CampaignType,
     icon: Video,
     title: "AI Video",
-    description: "Generate engaging video content with AI-powered visuals and narration",
-    features: ["Custom scenes and characters", "Professional voiceovers", "Multiple aspect ratios", "HD quality output"],
+    description:
+      "Generate engaging video content with AI-powered visuals and narration",
+    features: [
+      "Custom scenes and characters",
+      "Professional voiceovers",
+      "Multiple aspect ratios",
+      "HD quality output",
+    ],
     credits: CREDIT_COSTS.video,
     popular: true,
   },
@@ -42,8 +54,14 @@ const contentTypes = [
     type: "image" as CampaignType,
     icon: Image,
     title: "AI Images",
-    description: "Create stunning visual content including photos, illustrations, and graphics",
-    features: ["High-resolution images", "Multiple styles and formats", "Brand consistency", "Batch generation"],
+    description:
+      "Create stunning visual content including photos, illustrations, and graphics",
+    features: [
+      "High-resolution images",
+      "Multiple styles and formats",
+      "Brand consistency",
+      "Batch generation",
+    ],
     credits: CREDIT_COSTS.image,
     popular: false,
   },
@@ -51,8 +69,14 @@ const contentTypes = [
     type: "script" as CampaignType,
     icon: FileText,
     title: "AI Scripts",
-    description: "Generate compelling copy and scripts for various marketing purposes",
-    features: ["Marketing copy", "Social media posts", "Email templates", "Ad copy"],
+    description:
+      "Generate compelling copy and scripts for various marketing purposes",
+    features: [
+      "Marketing copy",
+      "Social media posts",
+      "Email templates",
+      "Ad copy",
+    ],
     credits: CREDIT_COSTS.script,
     popular: false,
   },
@@ -72,7 +96,7 @@ export function CampaignStepType({
 
   const handleNext = async () => {
     if (!selectedType) return;
-    
+
     await onNext({
       campaign_type: selectedType,
     });
@@ -80,7 +104,7 @@ export function CampaignStepType({
 
   const handleSave = async () => {
     if (!selectedType) return;
-    
+
     await onSave({
       campaign_type: selectedType,
     });
@@ -96,7 +120,8 @@ export function CampaignStepType({
         <CardHeader>
           <CardTitle>Choose Content Type</CardTitle>
           <CardDescription>
-            Select the type of content you want to generate. Each type has different capabilities and credit costs.
+            Select the type of content you want to generate. Each type has
+            different capabilities and credit costs.
           </CardDescription>
         </CardHeader>
       </Card>
@@ -105,7 +130,7 @@ export function CampaignStepType({
         {contentTypes.map((contentType) => {
           const Icon = contentType.icon;
           const isSelected = selectedType === contentType.type;
-          
+
           return (
             <Card
               key={contentType.type}
@@ -155,22 +180,30 @@ export function CampaignStepType({
             <div className="flex items-center gap-3 p-4 bg-muted rounded-lg">
               <div className="flex-shrink-0">
                 {(() => {
-                  const selectedContent = contentTypes.find(t => t.type === selectedType);
+                  const selectedContent = contentTypes.find(
+                    (t) => t.type === selectedType
+                  );
                   const Icon = selectedContent?.icon || FileText;
                   return <Icon className="h-5 w-5 text-primary" />;
                 })()}
               </div>
               <div className="flex-1">
                 <h4 className="font-medium">
-                  {contentTypes.find(t => t.type === selectedType)?.title} Selected
+                  {contentTypes.find((t) => t.type === selectedType)?.title}{" "}
+                  Selected
                 </h4>
                 <p className="text-sm text-muted-foreground">
-                  This will cost {contentTypes.find(t => t.type === selectedType)?.credits} credits per generation
+                  This will cost{" "}
+                  {contentTypes.find((t) => t.type === selectedType)?.credits}{" "}
+                  credits per generation
                 </p>
               </div>
               <Badge variant="outline">
                 <Zap className="h-3 w-3 mr-1" />
-                {contentTypes.find(t => t.type === selectedType)?.credits} credits
+                {
+                  contentTypes.find((t) => t.type === selectedType)?.credits
+                }{" "}
+                credits
               </Badge>
             </div>
           </CardContent>
@@ -185,11 +218,7 @@ export function CampaignStepType({
 
         <div className="flex items-center gap-2">
           {selectedType && (
-            <Button
-              variant="outline"
-              onClick={handleSave}
-              disabled={saving}
-            >
+            <Button variant="outline" onClick={handleSave} disabled={saving}>
               {saving ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -204,10 +233,7 @@ export function CampaignStepType({
             </Button>
           )}
 
-          <Button 
-            onClick={handleNext} 
-            disabled={!selectedType || saving}
-          >
+          <Button onClick={handleNext} disabled={!selectedType || saving}>
             <ArrowRight className="mr-2 h-4 w-4" />
             Continue to Content Details
           </Button>

@@ -22,8 +22,14 @@ import toast from "react-hot-toast";
 import { Plus, Loader2 } from "lucide-react";
 
 const createCampaignSchema = z.object({
-  name: z.string().min(1, "Campaign name is required").max(100, "Name must be less than 100 characters"),
-  description: z.string().max(500, "Description must be less than 500 characters").optional(),
+  name: z
+    .string()
+    .min(1, "Campaign name is required")
+    .max(100, "Name must be less than 100 characters"),
+  description: z
+    .string()
+    .max(500, "Description must be less than 500 characters")
+    .optional(),
 });
 
 type CreateCampaignFormData = z.infer<typeof createCampaignSchema>;
@@ -58,26 +64,21 @@ export function CreateCampaignModal({
       const response = await api.createCampaign({
         name: data.name,
         description: data.description,
-        // Don&apos;t set campaign_type yet - user will choose in the builder
       });
 
       if (response.success) {
-        const campaignId = response.data.id;
+        const campaignId = response.data?.id;
         toast.success("Campaign created successfully!");
-        
-        // Reset form and close modal
+
         reset();
         onOpenChange(false);
-        
-        // Notify parent component
-        if (onCampaignCreated) {
-          onCampaignCreated();
-        }
+
+        onCampaignCreated?.();
 
         // Navigate to campaign builder
-        router.push(URLS.CAMPAIGN.EDIT(campaignId));
+        router.push(URLS.CAMPAIGN.VIEW(campaignId || ""));
       } else {
-        throw new Error(response.data.message);
+        throw new Error(response.message || "Failed to create campaign");
       }
     } catch (error: unknown) {
       console.error("Error creating campaign:", error);
@@ -107,7 +108,8 @@ export function CreateCampaignModal({
             Create New Campaign
           </DialogTitle>
           <DialogDescription>
-            Start by giving your campaign a name. You&apos;ll be able to configure the details in the next step.
+            Start by giving your campaign a name. You&apos;ll be able to
+            configure the details in the next step.
           </DialogDescription>
         </DialogHeader>
 
@@ -137,7 +139,9 @@ export function CreateCampaignModal({
               disabled={isCreating}
             />
             {errors.description && (
-              <p className="text-destructive text-sm">{errors.description.message}</p>
+              <p className="text-destructive text-sm">
+                {errors.description.message}
+              </p>
             )}
           </div>
 

@@ -51,7 +51,6 @@ export default function CampaignsPage() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
-  const [typeFilter, setTypeFilter] = useState("all");
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -61,7 +60,7 @@ export default function CampaignsPage() {
   useEffect(() => {
     fetchCampaigns();
     fetchStats();
-  }, [currentPage, statusFilter, typeFilter, searchTerm]);
+  }, [currentPage, statusFilter, searchTerm]);
 
   useEffect(() => {
     if (query.get("create") === "true") {
@@ -81,10 +80,6 @@ export default function CampaignsPage() {
         params.append("status", statusFilter);
       }
 
-      if (typeFilter !== "all") {
-        params.append("campaign_type", typeFilter);
-      }
-
       if (searchTerm) {
         params.append("search", searchTerm);
       }
@@ -92,7 +87,7 @@ export default function CampaignsPage() {
       const response = await api.getCampaigns(currentPage);
 
       if (response.success) {
-        setCampaigns(response.data?.campaigns || []);
+        setCampaigns(response.data?.data || []);
         setTotalPages(response.data?.pagination.totalPages || 1);
       } else {
         throw new Error(response.message);
@@ -321,23 +316,9 @@ export default function CampaignsPage() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All Status</SelectItem>
-                    <SelectItem value="draft">Draft</SelectItem>
                     <SelectItem value="in_progress">In Progress</SelectItem>
                     <SelectItem value="completed">Completed</SelectItem>
                     <SelectItem value="failed">Failed</SelectItem>
-                    <SelectItem value="cancelled">Cancelled</SelectItem>
-                  </SelectContent>
-                </Select>
-
-                <Select value={typeFilter} onValueChange={setTypeFilter}>
-                  <SelectTrigger className="w-[120px]">
-                    <SelectValue placeholder="Type" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Types</SelectItem>
-                    <SelectItem value="video">Video</SelectItem>
-                    <SelectItem value="image">Image</SelectItem>
-                    <SelectItem value="script">Script</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -454,41 +435,6 @@ export default function CampaignsPage() {
                         <Eye className="h-4 w-4 mr-1" />
                         View
                       </Button>
-
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="sm">
-                            <MoreVertical className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem
-                            onClick={() =>
-                              router.push(URLS.CAMPAIGN.VIEW(campaign.id))
-                            }
-                          >
-                            <Eye className="h-4 w-4 mr-2" />
-                            View Details
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            onClick={() =>
-                              router.push(URLS.CAMPAIGN.EDIT(campaign.id))
-                            }
-                            disabled={campaign.status === "in_progress"}
-                          >
-                            <Edit className="h-4 w-4 mr-2" />
-                            Edit
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            onClick={() => handleDeleteCampaign(campaign.id)}
-                            disabled={campaign.status === "in_progress"}
-                            className="text-destructive focus:text-destructive"
-                          >
-                            <Trash2 className="h-4 w-4 mr-2" />
-                            Delete
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
                     </div>
                   </div>
                 </CardContent>

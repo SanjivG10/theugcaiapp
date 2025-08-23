@@ -25,15 +25,10 @@ import {
   AlertTriangle
 } from "lucide-react";
 
+import { Campaign } from "@/types/api";
+
 interface CampaignStepReviewProps {
-  campaign: {
-    id: string;
-    name: string;
-    description?: string;
-    campaign_type?: "video" | "image" | "script";
-    prompt?: string;
-    settings: Record<string, unknown>;
-  };
+  campaign: Campaign;
   stepData: Record<string, unknown>;
   onPrevious: () => Promise<void>;
   onLaunch: (data: Record<string, unknown>) => Promise<void>;
@@ -53,9 +48,9 @@ export function CampaignStepReview({
   const finalData = {
     name: (stepData.name as string) || campaign.name,
     description: (stepData.description as string) || campaign.description,
-    campaign_type: (stepData.campaign_type as string) || campaign.campaign_type,
+    campaign_type: (stepData.campaign_type as "video" | "image" | "script") || campaign.campaign_type,
     prompt: (stepData.prompt as string) || campaign.prompt,
-    settings: { ...campaign.settings, ...(stepData.settings as Record<string, unknown> || {}) },
+    settings: { ...(campaign.settings as Record<string, unknown> || {}), ...(stepData.settings as Record<string, unknown> || {}) },
   };
 
   const getTypeIcon = (type?: string) => {
