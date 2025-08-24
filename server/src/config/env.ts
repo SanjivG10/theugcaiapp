@@ -15,6 +15,7 @@
 // OPENAI_API_KEY=your_openai_api_key
 // RUNWAY_API_KEY=your_runway_api_key
 // STABLE_VIDEO_API_KEY=your_stable_video_api_key
+// ELEVENLABS_API_KEY=your_elevenlabs_api_key
 
 // # Stripe Configuration
 // STRIPE_SECRET_KEY=sk_test_your_stripe_secret_key
@@ -38,6 +39,7 @@ export const env = {
     OPENAI_API_KEY: process.env.OPENAI_API_KEY!,
     RUNWAY_API_KEY: process.env.RUNWAY_API_KEY!,
     STABLE_VIDEO_API_KEY: process.env.STABLE_VIDEO_API_KEY!,
+    ELEVENLABS_API_KEY: process.env.ELEVENLABS_API_KEY!,
   },
   SUPABASE: {
     URL: process.env.SUPABASE_URL!,

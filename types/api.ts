@@ -242,9 +242,10 @@ export interface CheckCreditsResponse {
 
 export interface ConsumeCreditsRequest {
   action: string;
-  credits: number;
-  metadata?: Json;
   campaign_id?: string;
+  scenes?: number;
+  tone?: string;
+  style?: string;
 }
 
 export interface ConsumeCreditsResponse {
@@ -304,6 +305,120 @@ export interface SubscriptionPlan {
 // CAMPAIGN ENDPOINTS
 // ============================================================================
 
+// Campaign Settings Types
+export interface CampaignScriptSettings {
+  tone: string;
+  length: string;
+  style: string;
+}
+
+export interface CampaignSettings {
+  // Basic settings
+  videoDescription?: string;
+  numberOfScenes?: number;
+  campaignObjective?: string;
+  selectedVoice?: string;
+
+  // Script settings
+  scriptMode?: "ai" | "manual";
+  scriptSettings?: CampaignScriptSettings;
+
+  // Additional settings
+  animationStyle?: string;
+  duration?: number;
+  voiceSettings?: {
+    speed?: number;
+    pitch?: number;
+    volume?: number;
+  };
+
+  // Video generation settings
+  resolution?: string;
+  aspectRatio?: string;
+  format?: string;
+}
+
+// Campaign Step Data Types
+export interface ProductImage {
+  id: string;
+  file?: File;
+  url: string;
+  name: string;
+}
+
+export interface GeneratedImage {
+  id: string;
+  url: string;
+  sceneNumber: number;
+  prompt: string;
+  approved: boolean;
+}
+
+export interface VideoPrompt {
+  id: string;
+  imageId: string;
+  prompt: string;
+  animationStyle: string;
+  duration: number;
+}
+
+export interface GeneratedVideo {
+  id: string;
+  imageId: string;
+  url: string;
+  status: "queued" | "processing" | "completed" | "failed";
+  progress?: number;
+}
+
+export interface CampaignStepData {
+  // Step 1: Basic Info
+  step_1?: {
+    productImages?: ProductImage[];
+    voice?: VoiceData;
+    numberOfScenes?: number;
+    campaignObjective?: string;
+  };
+
+  // Step 2: Script Generation (matches API response)
+  step_2?: {
+    script?: string;
+    scriptMode?: "ai" | "manual";
+    scriptSettings?: CampaignScriptSettings;
+    selectedVoice?: string;
+    productImages?: ProductImage[];
+  };
+
+  // Step 3: Image Generation
+  step_3?: {
+    generatedImages?: GeneratedImage[];
+  };
+
+  // Step 4: Image Selection
+  step_4?: {
+    selectedImages?: string[];
+  };
+
+  // Step 5: Video Prompts
+  step_5?: {
+    videoPrompts?: VideoPrompt[];
+  };
+
+  // Step 6: Video Generation
+  step_6?: {
+    generatedVideos?: GeneratedVideo[];
+  };
+
+  // Step 7: Final Assembly
+  step_7?: {
+    finalVideoUrl?: string;
+    exportSettings?: {
+      format?: string;
+      quality?: string;
+      watermark?: boolean;
+    };
+  };
+}
+
 export interface Campaign {
   id: string;
   name: string;
@@ -313,8 +428,8 @@ export interface Campaign {
   status?: "draft" | "in_progress" | "completed" | "failed" | "cancelled";
   current_step?: number;
   total_steps?: number;
-  step_data?: Json;
-  settings?: Json;
+  step_data?: CampaignStepData;
+  settings?: CampaignSettings;
   metadata?: Json;
   estimated_credits?: number;
   credits_used?: number;
@@ -334,7 +449,7 @@ export interface CreateCampaignRequest {
   description?: string;
   campaign_type?: "video" | "image" | "script";
   prompt?: string;
-  settings?: Json;
+  settings?: CampaignSettings;
   estimated_credits?: number;
   is_template?: boolean;
 }
@@ -344,10 +459,10 @@ export interface UpdateCampaignRequest {
   description?: string;
   campaign_type?: "video" | "image" | "script";
   prompt?: string;
-  settings?: Json;
+  settings?: CampaignSettings;
   status?: "draft" | "in_progress" | "completed" | "failed" | "cancelled";
   current_step?: number;
-  step_data?: Json;
+  step_data?: CampaignStepData;
 }
 
 export interface CampaignStats {
@@ -598,4 +713,38 @@ export interface HealthCheckResponse {
   timestamp: string;
   version?: string;
   environment?: string;
+}
+
+// ============================================================================
+// UPLOAD ENDPOINTS
+// ============================================================================
+
+export interface ProductImageUpload {
+  id: string;
+  url: string;
+  name: string;
+  size: number;
+  type: string;
+}
+
+// ============================================================================
+// VOICE ENDPOINTS
+// ============================================================================
+
+export interface VoiceData {
+  voice_id: string;
+  name: string;
+  category: string;
+  description?: string;
+  gender?: string;
+  age?: string;
+  accent?: string;
+  use_case?: string;
+  preview_url?: string;
+}
+
+export interface VoicePreview {
+  audio_url: string;
+  voice_id: string;
+  text: string;
 }

@@ -20,6 +20,7 @@ import { Clock, DollarSign, Play, Sparkles, Wand2 } from "lucide-react";
 import Image from "next/image";
 import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
+import { api } from "@/lib/api";
 
 interface VideoPromptsProps {
   onNext: () => void;
@@ -64,7 +65,7 @@ export function VideoPrompts({ onNext, onPrev }: VideoPromptsProps) {
 
   useEffect(() => {
     // Initialize prompts for selected images if not exists
-    if (state.videoPrompts.length === 0) {
+    if (state.videoPrompts.length === 0 && selectedImages.length > 0) {
       const initialPrompts: VideoPrompt[] = selectedImages.map(
         (image, index) => ({
           id: Math.random().toString(36).substring(2, 9),
@@ -80,10 +81,11 @@ export function VideoPrompts({ onNext, onPrev }: VideoPromptsProps) {
       initialPrompts.forEach((prompt) => {
         dispatch({ type: "ADD_VIDEO_PROMPT", payload: prompt });
       });
-    } else {
+    } else if (state.videoPrompts.length > 0) {
+      // Mount saved video prompts
       setPrompts(state.videoPrompts);
     }
-  }, [selectedImages, state.videoPrompts.length]);
+  }, [selectedImages, state.videoPrompts, dispatch]);
 
   const generateAutoPrompt = (image: GeneratedImage, index: number) => {
     const basePrompts = [
@@ -127,11 +129,29 @@ export function VideoPrompts({ onNext, onPrev }: VideoPromptsProps) {
     }, 0);
   };
 
-  const handleNext = () => {
+  const handleNext = async () => {
     if (prompts.some((p) => !p.prompt.trim())) {
       toast.error("Please fill in all video prompts");
       return;
     }
+
+    // Save video prompts data if we have a campaign ID
+    if (state.campaignId) {
+      try {
+        const stepData = {
+          videoPrompts: prompts,
+          selectedImages: state.selectedImages,
+        };
+
+        await api.saveCampaignStepData(state.campaignId, 5, stepData);
+        toast.success("Video prompts saved");
+      } catch (error) {
+        console.error("Failed to save video prompts:", error);
+        toast.error("Failed to save video prompts");
+        return;
+      }
+    }
+
     onNext();
   };
 
@@ -188,7 +208,7 @@ export function VideoPrompts({ onNext, onPrev }: VideoPromptsProps) {
                     {/* Image Preview */}
                     <div className="space-y-3">
                       <div className="aspect-square rounded-lg overflow-hidden">
-                        <Image
+                        <img
                           src={image.url}
                           alt={`Scene ${image.sceneNumber}`}
                           width={200}
@@ -202,12 +222,13 @@ export function VideoPrompts({ onNext, onPrev }: VideoPromptsProps) {
                           Scene {image.sceneNumber}
                         </p>
                       </div>
-                      
+
                       {/* Script text */}
                       <div className="mt-3 p-2 bg-muted/50 rounded text-xs">
                         <p className="font-medium mb-1">Script:</p>
                         <p className="text-muted-foreground line-clamp-3">
-                          {state.script.split('\n\n')[image.sceneNumber - 1] || 'No script content'}
+                          {state.script.split("\n\n")[image.sceneNumber - 1] ||
+                            "No script content"}
                         </p>
                       </div>
                     </div>
@@ -398,6 +419,44 @@ export function VideoPrompts({ onNext, onPrev }: VideoPromptsProps) {
                   );
                 })}
               </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Campaign Details</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3 text-sm">
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Campaign:</span>
+                <span className="font-medium">{state.campaignName}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Objective:</span>
+                <span className="font-medium capitalize">
+                  {state.campaignObjective?.replace("-", " ") || "Not set"}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Scenes:</span>
+                <span className="font-medium">
+                  {state.numberOfScenes} scenes
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Voice:</span>
+                <span className="font-medium capitalize">
+                  {state.selectedVoice || "Not set"}
+                </span>
+              </div>
+              {state.videoDescription && (
+                <div className="mt-4 p-3 bg-muted rounded-lg">
+                  <p className="text-xs text-muted-foreground mb-1">
+                    Description:
+                  </p>
+                  <p className="text-sm">{state.videoDescription}</p>
+                </div>
+              )}
             </CardContent>
           </Card>
 

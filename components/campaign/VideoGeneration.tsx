@@ -4,7 +4,11 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { GeneratedVideo, useCampaign } from "@/contexts/CampaignContext";
+import {
+  GeneratedVideo,
+  useCampaign,
+  VideoPrompt,
+} from "@/contexts/CampaignContext";
 import {
   CheckCircle,
   Clock,
@@ -15,7 +19,7 @@ import {
   XCircle,
 } from "lucide-react";
 import Image from "next/image";
-import { useEffect, useState, useCallback } from "react";
+import { useCallback, useState } from "react";
 import toast from "react-hot-toast";
 
 interface VideoGenerationProps {
@@ -33,11 +37,12 @@ export function VideoGeneration({ onNext, onPrev }: VideoGenerationProps) {
     state.selectedImages.includes(img.id)
   );
 
-
-  const generateSingleVideo = async (prompt: any) => {
-    const existingVideo = state.generatedVideos.find(v => v.imageId === prompt.imageId);
+  const generateSingleVideo = async (prompt: VideoPrompt) => {
+    const existingVideo = state.generatedVideos.find(
+      (v) => v.imageId === prompt.imageId
+    );
     let videoId;
-    
+
     if (existingVideo) {
       videoId = existingVideo.id;
     } else {
@@ -336,7 +341,7 @@ export function VideoGeneration({ onNext, onPrev }: VideoGenerationProps) {
                   <div>
                     <p className="text-sm font-medium mb-2">Source Image</p>
                     <div className="aspect-square rounded-lg overflow-hidden">
-                      <Image
+                      <img
                         src={image.url}
                         alt={`Scene ${image.sceneNumber}`}
                         width={150}
@@ -427,8 +432,8 @@ export function VideoGeneration({ onNext, onPrev }: VideoGenerationProps) {
                         <Eye className="w-4 h-4 mr-1" />
                         Preview
                       </Button>
-                      <Button 
-                        variant="outline" 
+                      <Button
+                        variant="outline"
                         size="sm"
                         onClick={() => regenerateVideo(video.id)}
                       >
@@ -475,17 +480,20 @@ export function VideoGeneration({ onNext, onPrev }: VideoGenerationProps) {
                 Generate all remaining videos at once
               </p>
             </div>
-            <Button 
-              onClick={startVideoGeneration} 
+            <Button
+              onClick={startVideoGeneration}
               size="lg"
-              disabled={isGenerating || completedVideos.length === state.videoPrompts.length}
+              disabled={
+                isGenerating ||
+                completedVideos.length === state.videoPrompts.length
+              }
             >
               {isGenerating ? (
                 <Loader2 className="w-5 h-5 mr-2 animate-spin" />
               ) : (
                 <Play className="w-5 h-5 mr-2" />
               )}
-              {isGenerating ? 'Generating...' : 'Generate All Videos'}
+              {isGenerating ? "Generating..." : "Generate All Videos"}
             </Button>
           </div>
         </CardContent>

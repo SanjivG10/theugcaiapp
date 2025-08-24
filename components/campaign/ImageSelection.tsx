@@ -149,10 +149,9 @@ export function ImageSelection({ onNext, onPrev }: ImageSelectionProps) {
                             : "border-muted"
                         }`}
                       >
-                        <Image
+                        <img
                           src={image.url}
                           alt={`Scene ${image.sceneNumber}`}
-                          fill
                           className="object-cover"
                         />
 
@@ -187,7 +186,8 @@ export function ImageSelection({ onNext, onPrev }: ImageSelectionProps) {
                       {/* Script preview */}
                       <div className="mt-2 p-2 bg-muted/50 rounded text-xs">
                         <p className="line-clamp-2 text-muted-foreground">
-                          {state.script.split('\n\n')[image.sceneNumber - 1] || 'No script content'}
+                          {state.script.split("\n\n")[image.sceneNumber - 1] ||
+                            "No script content"}
                         </p>
                       </div>
 
@@ -262,7 +262,7 @@ export function ImageSelection({ onNext, onPrev }: ImageSelectionProps) {
                                   </div>
 
                                   <div className="w-12 h-12 rounded overflow-hidden flex-shrink-0">
-                                    <Image
+                                    <img
                                       src={image.url}
                                       alt={`Scene ${image.sceneNumber}`}
                                       width={48}

@@ -100,7 +100,7 @@ export function FinalAssembly({ onPrev }: FinalAssemblyProps) {
   const [isExporting, setIsExporting] = useState(false);
   const [exportProgress, setExportProgress] = useState(0);
   const [showCongratulations, setShowCongratulations] = useState(false);
-  const [shareUrl, setShareUrl] = useState('');
+  const [shareUrl, setShareUrl] = useState("");
   const [assemblySettings, setAssemblySettings] = useState({
     transition: "fade",
     musicEnabled: true,
@@ -123,7 +123,7 @@ export function FinalAssembly({ onPrev }: FinalAssemblyProps) {
     if (!state.finalVideoUrl && completedVideos.length > 0) {
       assembleVideo();
     }
-  }, [completedVideos.length, state.finalVideoUrl, assembleVideo]);
+  }, [completedVideos.length, state.finalVideoUrl]);
 
   const assembleVideo = useCallback(async () => {
     setIsAssembling(true);
@@ -136,9 +136,11 @@ export function FinalAssembly({ onPrev }: FinalAssemblyProps) {
         "-"
       )}.mp4`;
       dispatch({ type: "SET_FINAL_VIDEO_URL", payload: finalVideoUrl });
-      
+
       // Generate shareable link
-      const shareableUrl = `${window.location.origin}/share/${state.campaignName.replace(/\s+/g, '-').toLowerCase()}`;
+      const shareableUrl = `${window.location.origin}/share/${state.campaignName
+        .replace(/\s+/g, "-")
+        .toLowerCase()}`;
       setShareUrl(shareableUrl);
 
       toast.success("Video assembled successfully!");
@@ -193,27 +195,35 @@ export function FinalAssembly({ onPrev }: FinalAssemblyProps) {
 
   const shareVideo = () => {
     if (navigator.share && shareUrl) {
-      navigator.share({
-        title: `${state.campaignName} - AI Generated Video`,
-        text: `Check out my AI-generated video: ${state.campaignName}`,
-        url: shareUrl,
-      }).catch(console.error);
+      navigator
+        .share({
+          title: `${state.campaignName} - AI Generated Video`,
+          text: `Check out my AI-generated video: ${state.campaignName}`,
+          url: shareUrl,
+        })
+        .catch(console.error);
     } else {
       // Fallback: copy to clipboard
-      navigator.clipboard.writeText(shareUrl).then(() => {
-        toast.success('Share link copied to clipboard!');
-      }).catch(() => {
-        toast.error('Failed to copy link');
-      });
+      navigator.clipboard
+        .writeText(shareUrl)
+        .then(() => {
+          toast.success("Share link copied to clipboard!");
+        })
+        .catch(() => {
+          toast.error("Failed to copy link");
+        });
     }
   };
 
   const copyShareLink = () => {
-    navigator.clipboard.writeText(shareUrl).then(() => {
-      toast.success('Link copied to clipboard!');
-    }).catch(() => {
-      toast.error('Failed to copy link');
-    });
+    navigator.clipboard
+      .writeText(shareUrl)
+      .then(() => {
+        toast.success("Link copied to clipboard!");
+      })
+      .catch(() => {
+        toast.error("Failed to copy link");
+      });
   };
 
   return (
@@ -233,15 +243,18 @@ export function FinalAssembly({ onPrev }: FinalAssemblyProps) {
                       🎉 Congratulations!
                     </h3>
                     <p className="text-muted-foreground">
-                      Your AI-generated video &apos;{state.campaignName}&apos; has been successfully created and exported!
+                      Your AI-generated video &apos;{state.campaignName}&apos;
+                      has been successfully created and exported!
                     </p>
                   </div>
                 </div>
-                
+
                 <div className="space-y-3">
                   <div className="grid grid-cols-2 gap-3 text-sm">
                     <div className="bg-muted/50 rounded-lg p-3">
-                      <div className="font-medium">{completedVideos.length}</div>
+                      <div className="font-medium">
+                        {completedVideos.length}
+                      </div>
                       <div className="text-muted-foreground">Scenes</div>
                     </div>
                     <div className="bg-muted/50 rounded-lg p-3">
@@ -250,12 +263,19 @@ export function FinalAssembly({ onPrev }: FinalAssemblyProps) {
                     </div>
                   </div>
                 </div>
-                
+
                 <div className="space-y-3">
-                  <Button onClick={() => setShowCongratulations(false)} className="w-full">
+                  <Button
+                    onClick={() => setShowCongratulations(false)}
+                    className="w-full"
+                  >
                     Continue Editing
                   </Button>
-                  <Button variant="outline" onClick={createNewCampaign} className="w-full">
+                  <Button
+                    variant="outline"
+                    onClick={createNewCampaign}
+                    className="w-full"
+                  >
                     Create New Campaign
                   </Button>
                 </div>
@@ -264,7 +284,7 @@ export function FinalAssembly({ onPrev }: FinalAssemblyProps) {
           </Card>
         </div>
       )}
-      
+
       <div>
         <div className="flex items-center space-x-3 mb-2">
           <h2 className="text-xl font-semibold text-foreground">
@@ -278,7 +298,8 @@ export function FinalAssembly({ onPrev }: FinalAssemblyProps) {
           )}
         </div>
         <p className="text-muted-foreground text-sm">
-          Preview your final video and customize export settings before downloading.
+          Preview your final video and customize export settings before
+          downloading.
         </p>
       </div>
 

@@ -68,6 +68,8 @@ export const authenticateToken = async (
   }
 };
 
+export const authMiddleware = authenticateToken;
+
 export const requireRole = (roles: string | string[]) => {
   return (req: Request, res: Response, next: NextFunction): void => {
     try {

@@ -12,6 +12,8 @@ import { businessRoutes } from "./routes/business";
 import creditRoutes from "./routes/credits";
 import campaignRoutes from "./routes/campaigns";
 import { feedbackRoutes } from "./routes/feedback";
+import uploadRoutes from "./routes/upload";
+import voicesRoutes from "./routes/voices";
 import { env } from "./config/env";
 
 // Load environment variables
@@ -53,6 +55,8 @@ app.use("/api/business", businessRoutes);
 app.use("/api/credits", creditRoutes);
 app.use("/api/campaigns", campaignRoutes);
 app.use("/api/feedback", feedbackRoutes);
+app.use("/api/upload", uploadRoutes);
+app.use("/api/voices", voicesRoutes);
 
 // 404 handler
 app.use("*everything", (req, res) => {

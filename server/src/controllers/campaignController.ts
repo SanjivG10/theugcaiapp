@@ -45,6 +45,15 @@ const updateCampaignSchema = z.object({
   step_data: z.record(z.any(), z.any()).optional(),
 });
 
+const saveCampaignSettingsSchema = z.object({
+  settings: z.record(z.any(), z.any()),
+});
+
+const saveCampaignStepDataSchema = z.object({
+  step: z.number().int().min(1).max(7),
+  stepData: z.record(z.any(), z.any()),
+});
+
 export class CampaignController {
   static async getCampaigns(req: Request, res: Response) {
     try {
@@ -721,6 +730,168 @@ export class CampaignController {
         success: false,
         message:
           error instanceof Error ? error.message : "Internal server error",
+      });
+    }
+  }
+
+  static async saveCampaignSettings(req: Request, res: Response) {
+    try {
+      const userId = req.user?.id;
+      const { id } = req.params;
+
+      if (!userId) {
+        return res.status(401).json({
+          success: false,
+          message: "Unauthorized",
+        });
+      }
+
+      const validation = saveCampaignSettingsSchema.safeParse(req.body);
+      if (!validation.success) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid input",
+          errors: validation.error,
+        });
+      }
+
+      const { settings } = validation.data;
+
+      // Check if campaign exists and belongs to user
+      const { data: existingCampaign, error: fetchError } = await supabaseAdmin
+        .from("campaigns")
+        .select("id, settings")
+        .eq("id", id)
+        .eq("user_id", userId)
+        .single();
+
+      if (fetchError || !existingCampaign) {
+        return res.status(404).json({
+          success: false,
+          message: "Campaign not found",
+        });
+      }
+
+      // Merge with existing settings
+      const mergedSettings = {
+        ...((existingCampaign.settings as Record<string, any>) || {}),
+        ...settings,
+      };
+
+      // Update campaign settings
+      const { data: updatedCampaign, error: updateError } = await supabaseAdmin
+        .from("campaigns")
+        .update({
+          settings: mergedSettings,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", id)
+        .select()
+        .single();
+
+      if (updateError) {
+        console.error("Error updating campaign settings:", updateError);
+        return res.status(500).json({
+          success: false,
+          message: "Failed to update campaign settings",
+          error: updateError.message,
+        });
+      }
+
+      const response: ApiResponse<Campaign> = {
+        success: true,
+        data: updatedCampaign,
+      };
+
+      return res.json(response);
+    } catch (error) {
+      console.error("Error in saveCampaignSettings:", error);
+      return res.status(500).json({
+        success: false,
+        message: "Internal server error",
+      });
+    }
+  }
+
+  static async saveCampaignStepData(req: Request, res: Response) {
+    try {
+      const userId = req.user?.id;
+      const { id } = req.params;
+
+      if (!userId) {
+        return res.status(401).json({
+          success: false,
+          message: "Unauthorized",
+        });
+      }
+
+      const validation = saveCampaignStepDataSchema.safeParse(req.body);
+      if (!validation.success) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid input",
+          errors: validation.error,
+        });
+      }
+
+      const { step, stepData } = validation.data;
+
+      // Check if campaign exists and belongs to user
+      const { data: existingCampaign, error: fetchError } = await supabaseAdmin
+        .from("campaigns")
+        .select("id, step_data")
+        .eq("id", id)
+        .eq("user_id", userId)
+        .single();
+
+      if (fetchError || !existingCampaign) {
+        return res.status(404).json({
+          success: false,
+          message: "Campaign not found",
+        });
+      }
+
+      // Merge with existing step data
+      const currentStepData = (existingCampaign.step_data as Record<string, any>) || {};
+      const mergedStepData = {
+        ...currentStepData,
+        [`step_${step}`]: {
+          ...(currentStepData[`step_${step}`] || {}),
+          ...stepData,
+        },
+      };
+
+      // Update campaign step data
+      const { data: updatedCampaign, error: updateError } = await supabaseAdmin
+        .from("campaigns")
+        .update({
+          step_data: mergedStepData,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", id)
+        .select()
+        .single();
+
+      if (updateError) {
+        console.error("Error updating campaign step data:", updateError);
+        return res.status(500).json({
+          success: false,
+          message: "Failed to update campaign step data",
+          error: updateError.message,
+        });
+      }
+
+      const response: ApiResponse<Campaign> = {
+        success: true,
+        data: updatedCampaign,
+      };
+
+      return res.json(response);
+    } catch (error) {
+      console.error("Error in saveCampaignStepData:", error);
+      return res.status(500).json({
+        success: false,
+        message: "Internal server error",
       });
     }
   }

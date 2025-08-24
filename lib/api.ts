@@ -39,6 +39,11 @@ import {
   FeedbackData,
   FeedbackResponse,
   HealthCheckResponse,
+  CampaignSettings,
+  CampaignStepData,
+  ProductImageUpload,
+  VoiceData,
+  VoicePreview,
 } from "@/types/api";
 
 class ApiClient {
@@ -380,9 +385,83 @@ class ApiClient {
     return response.data;
   }
 
+  async saveCampaignSettings(
+    id: string,
+    settings: CampaignSettings
+  ): Promise<ApiResponse<Campaign>> {
+    const response = await this.client.patch(`/api/campaigns/${id}/settings`, {
+      settings,
+    });
+    return response.data;
+  }
+
+  async saveCampaignStepData(
+    id: string,
+    step: number,
+    stepData: CampaignStepData[keyof CampaignStepData]
+  ): Promise<ApiResponse<Campaign>> {
+    const response = await this.client.patch(`/api/campaigns/${id}/step-data`, {
+      step,
+      stepData,
+    });
+    return response.data;
+  }
+
   // Health check
   async health(): Promise<ApiResponse<HealthCheckResponse>> {
     const response = await this.client.get("/health");
+    return response.data;
+  }
+
+  // Upload endpoints
+  async uploadProductImages(
+    campaignId: string,
+    files: FileList
+  ): Promise<ApiResponse<ProductImageUpload[]>> {
+    const formData = new FormData();
+    formData.append("campaign_id", campaignId);
+    Array.from(files).forEach((file) => {
+      formData.append("images", file);
+    });
+
+    const response = await this.client.post(
+      "/api/upload/product-images",
+      formData,
+      {
+        headers: {
+          "Content-Type": "multipart/form-data",
+        },
+      }
+    );
+    return response.data;
+  }
+
+  async deleteProductImage(filename: string): Promise<ApiResponse<void>> {
+    const response = await this.client.delete(
+      `/api/upload/product-images/${filename}`
+    );
+    return response.data;
+  }
+
+  // Voice endpoints
+  async getVoices(): Promise<ApiResponse<VoiceData[]>> {
+    const response = await this.client.get("/api/voices");
+    return response.data;
+  }
+
+  async getVoice(voiceId: string): Promise<ApiResponse<VoiceData>> {
+    const response = await this.client.get(`/api/voices/${voiceId}`);
+    return response.data;
+  }
+
+  async generateVoicePreview(
+    voiceId: string,
+    text: string
+  ): Promise<ApiResponse<VoicePreview>> {
+    const response = await this.client.post("/api/voices/preview", {
+      voice_id: voiceId,
+      text,
+    });
     return response.data;
   }
 

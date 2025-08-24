@@ -9,14 +9,14 @@ import { VideoGeneration } from "@/components/campaign/VideoGeneration";
 import { VideoPrompts } from "@/components/campaign/VideoPrompts";
 import { Badge } from "@/components/ui/badge";
 import { URLS } from "@/constants/urls";
+import { CampaignProvider } from "@/contexts/CampaignContext";
 import { api } from "@/lib/api";
 import { Campaign } from "@/types";
 import { ArrowLeft, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { useEffect, useState, useCallback } from "react";
+import { useCallback, useEffect, useState } from "react";
 import toast from "react-hot-toast";
-import { CampaignProvider } from "@/contexts/CampaignContext";
 
 const STEPS = [
   { id: 1, title: "Campaign Setup", component: CampaignSetup },
@@ -46,6 +46,10 @@ export default function CampaignEditPage() {
       if (response.success && response.data) {
         setCampaign(response.data);
         setCurrentStep(response.data.current_step || 1);
+
+        if (response.data.settings || response.data.step_data) {
+          // This will be handled by the CampaignProvider
+        }
       } else {
         throw new Error(response.message);
       }
@@ -101,7 +105,7 @@ export default function CampaignEditPage() {
     if (currentStep > 1) {
       const newStep = currentStep - 1;
       setCurrentStep(newStep);
-      saveProgress(newStep);
+      // Don't auto-save when going to previous step
     }
   };
 
@@ -109,7 +113,7 @@ export default function CampaignEditPage() {
     if (!campaign) return null;
 
     const CurrentStepComponent = STEPS[currentStep - 1].component;
-    
+
     return (
       <CurrentStepComponent
         onNext={nextStep}
@@ -139,7 +143,7 @@ export default function CampaignEditPage() {
           <p className="text-muted-foreground">
             The requested campaign could not be found.
           </p>
-          <Link 
+          <Link
             href={URLS.DASHBOARD.CAMPAIGNS}
             className="inline-flex items-center px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90"
           >
@@ -152,26 +156,30 @@ export default function CampaignEditPage() {
   }
 
   return (
-    <CampaignProvider>
+    <CampaignProvider campaignData={campaign}>
       <div className="min-h-screen bg-background">
         {/* Progress Header */}
         <div className="bg-card border-b border-border">
           <div className="max-w-4xl mx-auto px-6 py-4">
             <div className="flex items-center justify-between mb-2">
-              <Link 
+              <Link
                 href={URLS.DASHBOARD.CAMPAIGNS}
                 className="flex items-center text-sm text-muted-foreground hover:text-foreground transition-colors"
               >
                 <ArrowLeft className="h-4 w-4 mr-2" />
                 Back to Campaigns
               </Link>
-              <Badge variant={campaign.status === "draft" ? "secondary" : "default"}>
+              <Badge
+                variant={campaign.status === "draft" ? "secondary" : "default"}
+              >
                 {campaign.status}
               </Badge>
             </div>
-            
+
             <div className="flex items-center justify-between mb-4">
-              <h1 className="text-2xl font-bold text-foreground">{campaign.name}</h1>
+              <h1 className="text-2xl font-bold text-foreground">
+                {campaign.name}
+              </h1>
               <div className="text-sm text-muted-foreground">
                 Step {currentStep} of {STEPS.length}
               </div>
@@ -204,7 +212,9 @@ export default function CampaignEditPage() {
                         ? "border-primary text-primary"
                         : "border-muted-foreground"
                     }`}
-                    onClick={() => step.id <= currentStep && saveProgress(step.id)}
+                    onClick={() =>
+                      step.id <= currentStep && saveProgress(step.id)
+                    }
                   >
                     {step.id < currentStep ? "✓" : step.id}
                   </div>
@@ -212,7 +222,7 @@ export default function CampaignEditPage() {
                 </div>
               ))}
             </div>
-            
+
             {saving && (
               <div className="flex items-center justify-center mt-3 gap-2 text-sm text-muted-foreground">
                 <Loader2 className="h-4 w-4 animate-spin" />
@@ -223,9 +233,7 @@ export default function CampaignEditPage() {
         </div>
 
         {/* Main Content */}
-        <div className="max-w-4xl mx-auto px-6 py-8">
-          {renderStep()}
-        </div>
+        <div className="max-w-4xl mx-auto px-6 py-8">{renderStep()}</div>
       </div>
     </CampaignProvider>
   );

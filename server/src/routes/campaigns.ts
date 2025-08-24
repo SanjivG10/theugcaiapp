@@ -22,4 +22,8 @@ router.post("/:id/complete", CampaignController.completeCampaign);
 router.post("/:id/fail", CampaignController.failCampaign);
 router.post("/:id/cancel", CampaignController.cancelCampaign);
 
+// Campaign settings and step data routes
+router.patch("/:id/settings", CampaignController.saveCampaignSettings);
+router.patch("/:id/step-data", CampaignController.saveCampaignStepData);
+
 export default router;
