@@ -88,7 +88,7 @@ class ApiClient {
     );
   }
 
-  private getAuthToken(): string | null {
+  public getAuthToken(): string | null {
     if (typeof window !== "undefined") {
       return localStorage.getItem("auth_token");
     }
@@ -472,6 +472,44 @@ class ApiClient {
     const response = await this.client.post("/api/feedback", data);
     return response.data;
   }
+
+  // AI Generation endpoints
+  async generateScriptStream(data: {
+    campaignId: string;
+    sceneNumber: number;
+    productName: string;
+    objective: string;
+    tone: string;
+    style: string;
+    customPrompt?: string;
+  }): Promise<ReadableStream> {
+    const response = await fetch(`${this.client.defaults.baseURL}/api/campaigns/generate-script`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${this.getAuthToken()}`,
+      },
+      body: JSON.stringify(data),
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    return response.body as ReadableStream;
+  }
+
+  async generateImage(data: {
+    campaignId: string;
+    sceneNumber: number;
+    scriptText: string;
+    selectedImageIds: string[];
+    imageDescription?: string;
+  }): Promise<ApiResponse<any>> {
+    const response = await this.client.post("/api/campaigns/generate-image", data);
+    return response.data;
+  }
+
 }
 
 // Create and export the API client instance

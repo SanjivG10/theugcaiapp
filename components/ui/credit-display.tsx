@@ -10,6 +10,7 @@ interface CreditDisplayProps {
   currentCredits: number;
   showInsufficientWarning?: boolean;
   onPurchaseClick?: () => void;
+  numberOfScenes: number;
   className?: string;
 }
 
@@ -19,8 +20,9 @@ export function CreditDisplay({
   showInsufficientWarning = true,
   onPurchaseClick,
   className = "",
+  numberOfScenes,
 }: CreditDisplayProps) {
-  const requiredCredits = CREDIT_COSTS[action];
+  const requiredCredits = CREDIT_COSTS[action] * numberOfScenes;
   const hasEnoughCredits = currentCredits >= requiredCredits;
 
   const getActionLabel = (action: CreditAction) => {
@@ -92,7 +94,11 @@ export function CreditBalance({
   return (
     <div className={`flex items-center gap-2 ${className}`}>
       <div className="flex items-center gap-1">
-        <Zap className={`h-4 w-4 ${isLowCredits ? "text-red-500" : "text-yellow-500"}`} />
+        <Zap
+          className={`h-4 w-4 ${
+            isLowCredits ? "text-red-500" : "text-yellow-500"
+          }`}
+        />
         <span className="font-medium">{currentCredits}</span>
         <span className="text-sm text-muted-foreground">
           {currentCredits === 1 ? "credit" : "credits"}

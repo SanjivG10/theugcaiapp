@@ -1,6 +1,8 @@
 // API Types based on server endpoints and database schema
 // These types are designed to work with the Supabase database types
 
+import { SceneScript } from "@/contexts/CampaignContext";
+
 export type Json =
   | string
   | number
@@ -308,7 +310,6 @@ export interface SubscriptionPlan {
 // Campaign Settings Types
 export interface CampaignScriptSettings {
   tone: string;
-  length: string;
   style: string;
 }
 
@@ -382,10 +383,8 @@ export interface CampaignStepData {
   // Step 2: Script Generation (matches API response)
   step_2?: {
     script?: string;
-    scriptMode?: "ai" | "manual";
+    sceneScripts?: SceneScript[];
     scriptSettings?: CampaignScriptSettings;
-    selectedVoice?: string;
-    productImages?: ProductImage[];
   };
 
   // Step 3: Image Generation

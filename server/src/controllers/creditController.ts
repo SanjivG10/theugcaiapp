@@ -222,13 +222,13 @@ export class CreditController {
       const credits = await CreditService.getBusinessCredits(business.id);
 
       const response: ApiResponse<{
-        hasSufficientCredits: boolean;
+        can_proceed: boolean;
         currentCredits: number | null;
         requiredCredits: number;
       }> = {
         success: true,
         data: {
-          hasSufficientCredits: hasSufficient,
+          can_proceed: hasSufficient,
           currentCredits: credits.credits,
           requiredCredits: CREDIT_COSTS[action as keyof typeof CREDIT_COSTS],
         },

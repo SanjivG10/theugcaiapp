@@ -52,8 +52,6 @@ export function ImageGeneration({ onNext, onPrev }: ImageGenerationProps) {
   const { state, dispatch } = useCampaign();
   const totalScenes = state.numberOfScenes;
 
-  console.log({ state });
-
   // State for script editing
   const [editableScript, setEditableScript] = useState<EditableScript>({});
   const [scriptEditMode, setScriptEditMode] = useState<{
@@ -305,34 +303,44 @@ export function ImageGeneration({ onNext, onPrev }: ImageGenerationProps) {
     updateSceneGeneration(sceneNumber, { isGenerating: true });
 
     try {
-      // Simulate API call to generate image
-      await new Promise((resolve) => setTimeout(resolve, 4000));
-
-      // Create mock generated image
-      const generatedImage: GeneratedImage = {
-        id: Math.random().toString(36).substring(2, 9),
-        url: `/api/placeholder/400/400?scene=${sceneNumber}&t=${Date.now()}`,
+      // Call the image generation API
+      const response = await api.generateImage({
+        campaignId: state.campaignId as string,
         sceneNumber,
-        prompt:
-          scene.imagePrompt || `${scene.scriptText} featuring the product`,
-        approved: false,
-      };
+        scriptText: scene.scriptText,
+        selectedImageIds: scene.selectedProductImages,
+        imageDescription: scene.imagePrompt,
+      });
 
-      dispatch({ type: "ADD_GENERATED_IMAGE", payload: generatedImage });
+      if (response.success && response.data) {
+        // Create generated image from API response
+        const generatedImage: GeneratedImage = {
+          id: response.data.id,
+          url: response.data.url,
+          sceneNumber,
+          prompt: response.data.prompt,
+          approved: false,
+        };
 
-      // Consume credits for image generation
-      try {
-        await api.consumeCredits({
-          action: "IMAGE_GENERATION",
-          campaign_id: state.campaignId,
-        });
-        setCurrentCredits((prev) => prev - 2); // Update local state (2 credits for image generation)
-      } catch (error) {
-        console.error("Failed to consume credits:", error);
+        dispatch({ type: "ADD_GENERATED_IMAGE", payload: generatedImage });
+
+        // Consume credits for image generation
+        try {
+          await api.consumeCredits({
+            action: "IMAGE_GENERATION",
+            campaign_id: state.campaignId,
+          });
+          setCurrentCredits((prev) => prev - 2); // Update local state (2 credits for image generation)
+        } catch (error) {
+          console.error("Failed to consume credits:", error);
+        }
+
+        toast.success(`Scene ${sceneNumber} image generated successfully!`);
+      } else {
+        throw new Error(response.message || "Failed to generate image");
       }
-
-      toast.success(`Scene ${sceneNumber} image generated successfully!`);
     } catch (error) {
+      console.error("Failed to generate image:", error);
       toast.error("Failed to generate image. Please try again.");
     } finally {
       updateSceneGeneration(sceneNumber, { isGenerating: false });
@@ -582,8 +590,25 @@ export function ImageGeneration({ onNext, onPrev }: ImageGenerationProps) {
 
                     <div>
                       <label className="text-sm font-medium mb-2 block">
-                        Product Image:
+                        Product Image: <span className="text-red-500">*</span>
                       </label>
+
+                      {/* Required image selection notice */}
+                      {scene.selectedProductImages.length === 0 && (
+                        <div className="mb-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                          <div className="flex items-start space-x-2">
+                            <AlertTriangle className="w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0" />
+                            <div className="text-sm">
+                              <p className="font-medium text-blue-800 mb-1">
+                                Product Image Required
+                              </p>
+                              <p className="text-blue-700">
+                                You must select at least one product image for this scene. The AI will use your selected image(s) as a base to create the generated scene image with your description.
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      )}
 
                       {/* Warning banner for multiple image selection */}
                       {scene.selectedProductImages.length > 1 && (
@@ -665,6 +690,7 @@ export function ImageGeneration({ onNext, onPrev }: ImageGenerationProps) {
                         action="IMAGE_GENERATION"
                         currentCredits={currentCredits}
                         onPurchaseClick={() => setShowCreditModal(true)}
+                        numberOfScenes={totalScenes}
                       />
                       <Button
                         onClick={() => generateImage(scene.sceneNumber)}
@@ -803,7 +829,7 @@ export function ImageGeneration({ onNext, onPrev }: ImageGenerationProps) {
           <div className="flex justify-between">
             <span className="text-muted-foreground">Voice:</span>
             <span className="font-medium capitalize">
-              {state.selectedVoice || "Not set"}
+              {state?.voice?.name || "Not set"}
             </span>
           </div>
           {state.videoDescription && (

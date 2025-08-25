@@ -1,13 +1,7 @@
 import { Request, Response } from "express";
 import { CampaignService } from "../services/campaignService";
-import {
-  Campaign,
-  CampaignInsert,
-  CampaignUpdate,
-  ApiResponse,
-  PaginatedResponse,
-  Json,
-} from "../types/database";
+import { openaiService } from "../services/openaiService";
+import { Campaign, ApiResponse, PaginatedResponse } from "../types/database";
 import { z } from "zod";
 import { supabaseAdmin } from "../config/supabase";
 
@@ -36,8 +30,8 @@ const updateCampaignSchema = z.object({
     .optional(),
   prompt: z.string().optional(),
   settings: z.record(z.any(), z.any()).optional(),
-  output_urls: z.array(z.string().url()).optional(),
-  thumbnail_url: z.string().url().optional(),
+  output_urls: z.array(z.string()).optional(),
+  thumbnail_url: z.string().optional(),
   credits_used: z.number().int().min(0).optional(),
   estimated_credits: z.number().int().min(0).optional(),
   metadata: z.record(z.any(), z.any()).optional(),
@@ -52,6 +46,25 @@ const saveCampaignSettingsSchema = z.object({
 const saveCampaignStepDataSchema = z.object({
   step: z.number().int().min(1).max(7),
   stepData: z.record(z.any(), z.any()),
+});
+
+const generateScriptSchema = z.object({
+  campaignId: z.string(),
+  sceneNumber: z.number().int().min(1),
+  productName: z.string().min(1),
+  objective: z.string().min(1),
+  tone: z.string().min(1),
+  style: z.string().min(1),
+  customPrompt: z.string().optional(),
+  totalScenes: z.number().int().min(1),
+});
+
+const generateImageSchema = z.object({
+  campaignId: z.string(),
+  sceneNumber: z.number().int().min(1),
+  scriptText: z.string().min(1),
+  selectedImageIds: z.array(z.string()),
+  imageDescription: z.string().optional(),
 });
 
 export class CampaignController {
@@ -774,7 +787,7 @@ export class CampaignController {
 
       // Merge with existing settings
       const mergedSettings = {
-        ...((existingCampaign.settings as Record<string, any>) || {}),
+        ...((existingCampaign.settings as Record<string, string>) || {}),
         ...settings,
       };
 
@@ -852,11 +865,15 @@ export class CampaignController {
       }
 
       // Merge with existing step data
-      const currentStepData = (existingCampaign.step_data as Record<string, any>) || {};
+      const currentStepData =
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (existingCampaign.step_data as Record<string, any>) || {};
+
       const mergedStepData = {
         ...currentStepData,
         [`step_${step}`]: {
-          ...(currentStepData[`step_${step}`] || {}),
+          ...((currentStepData[`step_${step}`] as Record<string, string>) ||
+            {}),
           ...stepData,
         },
       };
@@ -889,6 +906,329 @@ export class CampaignController {
       return res.json(response);
     } catch (error) {
       console.error("Error in saveCampaignStepData:", error);
+      return res.status(500).json({
+        success: false,
+        message: "Internal server error",
+      });
+    }
+  }
+
+  static async generateScript(req: Request, res: Response) {
+    try {
+      const userId = req.user?.id;
+      if (!userId) {
+        return res.status(401).json({
+          success: false,
+          message: "Unauthorized",
+        });
+      }
+
+      const validation = generateScriptSchema.safeParse(req.body);
+      if (!validation.success) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid input",
+          errors: validation.error,
+        });
+      }
+
+      const {
+        campaignId,
+        sceneNumber,
+        productName,
+        objective,
+        tone,
+        style,
+        customPrompt,
+        totalScenes,
+      } = validation.data;
+
+      // Check if campaign exists and belongs to user
+      const { data: campaign, error: fetchError } = await supabaseAdmin
+        .from("campaigns")
+        .select("id, name, settings")
+        .eq("id", campaignId)
+        .eq("user_id", userId)
+        .single();
+
+      if (fetchError || !campaign) {
+        return res.status(404).json({
+          success: false,
+          message: "Campaign not found",
+        });
+      }
+
+      // Set up SSE headers for streaming
+      res.writeHead(200, {
+        "Content-Type": "text/plain",
+        "Cache-Control": "no-cache",
+        Connection: "keep-alive",
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Headers": "Cache-Control",
+      });
+
+      try {
+        // Generate script using OpenAI streaming
+        const response = await openaiService.generateScript({
+          productName,
+          campaignName: campaign.name,
+          objective,
+          tone,
+          style,
+          sceneNumber,
+          customPrompt,
+          totalScenes,
+        });
+
+        const generatedScript = response;
+
+        // Save the generated script to step data with structured scene mapping
+        if (campaign) {
+          const currentStepData =
+            (campaign.settings as Record<string, unknown>) || {};
+          const scenesData =
+            (currentStepData.scenesData as Array<{
+              sceneNumber: number;
+              selectedImages?: string[];
+              generatedImage?: unknown;
+              script?: unknown;
+            }>) || [];
+
+          // Find or create the scene data
+          const sceneIndex = scenesData.findIndex(
+            (s) => s.sceneNumber === sceneNumber
+          );
+          const scriptData = {
+            id: `script_${sceneNumber}_${Date.now()}`,
+            sceneNumber,
+            mode: "ai",
+            content: generatedScript,
+            aiPrompt: customPrompt,
+            generatedAt: new Date().toISOString(),
+          };
+
+          if (sceneIndex !== -1) {
+            // Update existing scene
+            scenesData[sceneIndex] = {
+              ...scenesData[sceneIndex],
+              script: scriptData,
+            };
+          } else {
+            // Create new scene data
+            scenesData.push({
+              sceneNumber,
+              selectedImages: [],
+              script: scriptData,
+            });
+          }
+
+          const stepData = {
+            ...currentStepData,
+            [`scene_${sceneNumber}_script`]: generatedScript,
+            [`scene_${sceneNumber}_generated_at`]: new Date().toISOString(),
+            scenesData, // Add structured scene data
+          };
+
+          await supabaseAdmin
+            .from("campaigns")
+            .update({
+              settings: stepData,
+              updated_at: new Date().toISOString(),
+            })
+            .eq("id", campaignId);
+        }
+      } catch (error) {
+        console.error("Error generating script:", error);
+        res.write("\n\nError generating script. Please try again.");
+        res.end();
+      }
+    } catch (error) {
+      console.error("Error in generateScript:", error);
+      res.status(500).json({
+        success: false,
+        message: "Internal server error",
+      });
+    }
+  }
+
+  static async generateImage(req: Request, res: Response) {
+    try {
+      const userId = req.user?.id;
+      if (!userId) {
+        return res.status(401).json({
+          success: false,
+          message: "Unauthorized",
+        });
+      }
+
+      const validation = generateImageSchema.safeParse(req.body);
+      if (!validation.success) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid input",
+          errors: validation.error,
+        });
+      }
+
+      const {
+        campaignId,
+        sceneNumber,
+        scriptText,
+        selectedImageIds,
+        imageDescription,
+      } = validation.data;
+
+      // Check if campaign exists and belongs to user
+      const { data: campaign, error: fetchError } = await supabaseAdmin
+        .from("campaigns")
+        .select("id, name, settings")
+        .eq("id", campaignId)
+        .eq("user_id", userId)
+        .single();
+
+      if (fetchError || !campaign) {
+        return res.status(404).json({
+          success: false,
+          message: "Campaign not found",
+        });
+      }
+
+      // Get the selected product images from step data
+      const stepData = (campaign.settings as Record<string, unknown>) || {};
+      const productImages =
+        (stepData.productImages as {
+          id: string;
+          url: string;
+          name: string;
+        }[]) || [];
+      const selectedImages = productImages.filter((img) =>
+        selectedImageIds.includes(img.id)
+      );
+
+      if (selectedImages.length === 0) {
+        return res.status(400).json({
+          success: false,
+          message: "Selected product images not found",
+        });
+      }
+
+      const generatedImageId = `gen_${Date.now()}_scene_${sceneNumber}`;
+
+      try {
+        // Generate image using OpenAI DALL-E
+        const imageResponse = await openaiService.generateImage({
+          scriptText,
+          sceneNumber,
+          imageDescription,
+          imageUrls: selectedImages.map((img) => img.url),
+        });
+
+        if (!imageResponse.data || imageResponse.data.length === 0) {
+          throw new Error("No image generated");
+        }
+
+        const generatedImageUrl = imageResponse.data[0].url;
+        if (!generatedImageUrl) {
+          throw new Error("No image URL returned");
+        }
+
+        // Download the generated image
+        const imageBuffer = await openaiService.downloadImageAsBuffer(
+          generatedImageUrl
+        );
+
+        // Upload to Supabase storage
+        const filename = `campaigns/${campaignId}/generated/${generatedImageId}.jpg`;
+        const { error: uploadError } = await supabaseAdmin.storage
+          .from("campaign-assets")
+          .upload(filename, imageBuffer, {
+            contentType: "image/jpeg",
+            upsert: true,
+          });
+
+        if (uploadError) {
+          console.error("Error uploading generated image:", uploadError);
+          throw new Error("Failed to save generated image");
+        }
+
+        // Get the public URL
+        const {
+          data: { publicUrl },
+        } = supabaseAdmin.storage
+          .from("campaign-assets")
+          .getPublicUrl(filename);
+
+        const generatedImageData = {
+          id: generatedImageId,
+          url: publicUrl,
+          prompt: imageResponse.data[0].revised_prompt || scriptText,
+          sceneNumber,
+          selectedImageIds,
+          createdAt: new Date().toISOString(),
+          storagePath: filename,
+        };
+
+        // Save to campaign step data with structured scene mapping
+        const currentStepData =
+          (campaign.settings as Record<string, unknown>) || {};
+        const scenesData =
+          (currentStepData.scenesData as Array<{
+            sceneNumber: number;
+            selectedImages?: string[];
+            generatedImage?: unknown;
+            script?: unknown;
+          }>) || [];
+
+        // Find or create the scene data
+        const sceneIndex = scenesData.findIndex(
+          (s) => s.sceneNumber === sceneNumber
+        );
+        if (sceneIndex !== -1) {
+          // Update existing scene
+          scenesData[sceneIndex] = {
+            ...scenesData[sceneIndex],
+            generatedImage: generatedImageData,
+          };
+        } else {
+          // Create new scene data
+          scenesData.push({
+            sceneNumber,
+            selectedImages: selectedImageIds,
+            generatedImage: generatedImageData,
+          });
+        }
+
+        const updatedStepData = {
+          ...currentStepData,
+          [`scene_${sceneNumber}_generated_image`]: generatedImageData,
+          generatedImages: [
+            ...((currentStepData.generatedImages as unknown[]) || []),
+            generatedImageData,
+          ],
+          scenesData, // Add structured scene data
+        };
+
+        await supabaseAdmin
+          .from("campaigns")
+          .update({
+            settings: updatedStepData,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", campaignId);
+
+        return res.json({
+          success: true,
+          data: generatedImageData,
+        });
+      } catch (error) {
+        console.error("Error generating image:", error);
+        return res.status(500).json({
+          success: false,
+          message: "Failed to generate image",
+        });
+      }
+    } catch (error) {
+      console.error("Error in generateImage:", error);
       return res.status(500).json({
         success: false,
         message: "Internal server error",

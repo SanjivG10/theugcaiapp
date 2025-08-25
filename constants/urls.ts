@@ -74,6 +74,8 @@ export const API_ENDPOINTS = {
     COMPLETE: (id: string) => `/api/campaigns/${id}/complete`,
     FAIL: (id: string) => `/api/campaigns/${id}/fail`,
     CANCEL: (id: string) => `/api/campaigns/${id}/cancel`,
+    GENERATE_SCRIPT: "/api/campaigns/generate-script",
+    GENERATE_IMAGE: "/api/campaigns/generate-image",
   },
   FEEDBACK: {
     CREATE: "/api/feedback",

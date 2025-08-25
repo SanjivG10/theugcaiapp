@@ -40,6 +40,24 @@ export interface GeneratedVideo {
   progress?: number;
 }
 
+export interface SceneScript {
+  id: string;
+  sceneNumber: number;
+  mode: "ai" | "manual";
+  content: string;
+  aiPrompt?: string;
+  isGenerating?: boolean;
+}
+
+export interface SceneData {
+  sceneNumber: number;
+  script?: SceneScript;
+  selectedImages: string[]; // Product image IDs
+  generatedImage?: GeneratedImage;
+  audioUrl?: string;
+  videoUrl?: string;
+}
+
 export interface CampaignState {
   campaignId?: string;
   campaignName: string;
@@ -52,9 +70,11 @@ export interface CampaignState {
   scriptMode?: "ai" | "manual";
   scriptSettings?: {
     tone: string;
-    length: string;
+    length?: string;
     style: string;
   };
+  sceneScripts?: SceneScript[];
+  scenesData: SceneData[]; // New structured scene data
   generatedImages: GeneratedImage[];
   selectedImages: string[];
   videoPrompts: VideoPrompt[];
@@ -75,8 +95,9 @@ type CampaignAction =
   | { type: "SET_SCRIPT_MODE"; payload: "ai" | "manual" }
   | {
       type: "SET_SCRIPT_SETTINGS";
-      payload: { tone: string; length: string; style: string };
+      payload: { tone: string; length?: string; style: string };
     }
+  | { type: "SET_SCENE_SCRIPTS"; payload: SceneScript[] }
   | { type: "ADD_GENERATED_IMAGE"; payload: GeneratedImage }
   | {
       type: "UPDATE_GENERATED_IMAGE";
@@ -94,6 +115,8 @@ type CampaignAction =
       payload: { id: string; updates: Partial<GeneratedVideo> };
     }
   | { type: "SET_FINAL_VIDEO_URL"; payload: string }
+  | { type: "UPDATE_SCENE_DATA"; payload: { sceneNumber: number; data: Partial<SceneData> } }
+  | { type: "INITIALIZE_SCENES_DATA"; payload: number }
   | { type: "LOAD_CAMPAIGN_DATA"; payload: Partial<CampaignState> };
 
 const initialState: CampaignState = {
@@ -109,6 +132,7 @@ const initialState: CampaignState = {
     preview_url: "",
   },
   script: "",
+  scenesData: [],
   generatedImages: [],
   selectedImages: [],
   videoPrompts: [],
@@ -160,6 +184,9 @@ function campaignReducer(
 
     case "SET_SCRIPT_SETTINGS":
       return { ...state, scriptSettings: action.payload };
+
+    case "SET_SCENE_SCRIPTS":
+      return { ...state, sceneScripts: action.payload };
 
     case "ADD_GENERATED_IMAGE":
       return {
@@ -214,6 +241,25 @@ function campaignReducer(
 
     case "SET_FINAL_VIDEO_URL":
       return { ...state, finalVideoUrl: action.payload };
+
+    case "INITIALIZE_SCENES_DATA":
+      return {
+        ...state,
+        scenesData: Array.from({ length: action.payload }, (_, index) => ({
+          sceneNumber: index + 1,
+          selectedImages: [],
+        })),
+      };
+
+    case "UPDATE_SCENE_DATA": {
+      const { sceneNumber, data } = action.payload;
+      return {
+        ...state,
+        scenesData: state.scenesData.map((scene) =>
+          scene.sceneNumber === sceneNumber ? { ...scene, ...data } : scene
+        ),
+      };
+    }
 
     case "LOAD_CAMPAIGN_DATA":
       return { ...state, ...action.payload };
@@ -289,6 +335,8 @@ export function CampaignProvider({
           loadedData.scriptMode = stepData.step_2.scriptMode;
         if (stepData.step_2?.scriptSettings)
           loadedData.scriptSettings = stepData.step_2.scriptSettings;
+        if (stepData.step_2?.sceneScripts)
+          loadedData.sceneScripts = stepData.step_2.sceneScripts;
 
         // Legacy: Load product images from step 2 (if stored there for backward compatibility)
         if (stepData.step_2?.productImages && !loadedData.productImages) {

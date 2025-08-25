@@ -26,4 +26,8 @@ router.post("/:id/cancel", CampaignController.cancelCampaign);
 router.patch("/:id/settings", CampaignController.saveCampaignSettings);
 router.patch("/:id/step-data", CampaignController.saveCampaignStepData);
 
+// AI Generation routes
+router.post("/generate-script", CampaignController.generateScript);
+router.post("/generate-image", CampaignController.generateImage);
+
 export default router;
