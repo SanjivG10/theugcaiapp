@@ -12,10 +12,11 @@ import {
 } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
 import { Textarea } from "@/components/ui/textarea";
+import { AssetLibraryModal } from "@/components/ui/asset-library-modal";
 import { ProductImage, useCampaign } from "@/contexts/CampaignContext";
 import { api } from "@/lib/api";
 import { VoiceData } from "@/types/api";
-import { Loader2, Play, Plus, Upload, X } from "lucide-react";
+import { FolderOpen, Loader2, Play, Plus, Upload, X } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useDropzone } from "react-dropzone";
 import toast from "react-hot-toast";
@@ -60,6 +61,9 @@ export function CampaignSetup({ onNext }: CampaignSetupProps) {
   const [selectedVoiceData, setSelectedVoiceData] = useState<VoiceData>(
     state.voice
   );
+
+  // Asset library modal state
+  const [assetLibraryOpen, setAssetLibraryOpen] = useState(false);
 
   // Mount saved values when context updates (only on initial load)
   const [hasInitialized, setHasInitialized] = useState(false);
@@ -171,6 +175,34 @@ export function CampaignSetup({ onNext }: CampaignSetupProps) {
     if (imageToRemove) {
       URL.revokeObjectURL(imageToRemove.url);
       dispatch({ type: "REMOVE_PRODUCT_IMAGE", payload: imageId });
+    }
+  };
+
+  const handleAssetLibrarySelect = (assets: any[]) => {
+    const remainingSlots = 5 - state.productImages.length;
+    const assetsToAdd = assets.slice(0, remainingSlots);
+
+    if (assets.length > remainingSlots) {
+      toast.error(
+        `Maximum 5 images allowed. ${
+          assets.length - remainingSlots
+        } assets not added.`
+      );
+    }
+
+    assetsToAdd.forEach((asset) => {
+      const productImage: ProductImage = {
+        id: asset.id,
+        url: asset.storage_url,
+        name: asset.name,
+      };
+      dispatch({ type: "ADD_PRODUCT_IMAGE", payload: productImage });
+    });
+
+    if (assetsToAdd.length > 0) {
+      toast.success(
+        `Added ${assetsToAdd.length} image${assetsToAdd.length === 1 ? "" : "s"} from asset library`
+      );
     }
   };
 
@@ -381,33 +413,54 @@ export function CampaignSetup({ onNext }: CampaignSetupProps) {
 
         {/* Upload Area */}
         {state.productImages.length < 5 && (
-          <Card
-            {...getRootProps()}
-            className={`border-2 border-dashed transition-colors cursor-pointer ${
-              isDragActive
-                ? "border-primary bg-primary/5"
-                : "border-muted-foreground/25 hover:border-primary/50"
-            }`}
-          >
-            <CardContent className="p-12 text-center">
-              <input {...getInputProps()} />
-              <div className="space-y-4">
-                <div className="mx-auto w-16 h-16 bg-muted rounded-full flex items-center justify-center">
-                  <Upload className="w-8 h-8 text-muted-foreground" />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <Card
+              {...getRootProps()}
+              className={`border-2 border-dashed transition-colors cursor-pointer ${
+                isDragActive
+                  ? "border-primary bg-primary/5"
+                  : "border-muted-foreground/25 hover:border-primary/50"
+              }`}
+            >
+              <CardContent className="p-8 text-center">
+                <input {...getInputProps()} />
+                <div className="space-y-3">
+                  <div className="mx-auto w-12 h-12 bg-muted rounded-full flex items-center justify-center">
+                    <Upload className="w-6 h-6 text-muted-foreground" />
+                  </div>
+                  <div>
+                    <p className="text-base font-medium text-foreground">
+                      {isDragActive ? "Drop images here" : "Upload Files"}
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Drop files or click to browse
+                    </p>
+                  </div>
                 </div>
-                <div>
-                  <p className="text-lg font-medium text-foreground">
-                    {isDragActive
-                      ? "Drop images here"
-                      : "Drop images here or click to browse"}
-                  </p>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    PNG, JPG, JPEG, WEBP up to 10MB each
-                  </p>
+              </CardContent>
+            </Card>
+
+            <Card 
+              className="border-2 border-dashed border-muted-foreground/25 hover:border-primary/50 transition-colors cursor-pointer"
+              onClick={() => setAssetLibraryOpen(true)}
+            >
+              <CardContent className="p-8 text-center">
+                <div className="space-y-3">
+                  <div className="mx-auto w-12 h-12 bg-muted rounded-full flex items-center justify-center">
+                    <FolderOpen className="w-6 h-6 text-muted-foreground" />
+                  </div>
+                  <div>
+                    <p className="text-base font-medium text-foreground">
+                      Asset Library
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Choose from your saved assets
+                    </p>
+                  </div>
                 </div>
-              </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+          </div>
         )}
 
         {/* Image Thumbnails */}
@@ -436,20 +489,33 @@ export function CampaignSetup({ onNext }: CampaignSetupProps) {
                 </Card>
               ))}
 
-              {/* Add More Button */}
+              {/* Add More Buttons */}
               {state.productImages.length < 5 && (
-                <Card
-                  {...getRootProps()}
-                  className="border-2 border-dashed border-muted-foreground/25 hover:border-primary/50 cursor-pointer transition-colors"
-                >
-                  <CardContent className="p-0 aspect-square flex items-center justify-center">
-                    <input {...getInputProps()} />
-                    <div className="text-center">
-                      <Plus className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
-                      <p className="text-xs text-muted-foreground">Add more</p>
-                    </div>
-                  </CardContent>
-                </Card>
+                <>
+                  <Card
+                    {...getRootProps()}
+                    className="border-2 border-dashed border-muted-foreground/25 hover:border-primary/50 cursor-pointer transition-colors"
+                  >
+                    <CardContent className="p-0 aspect-square flex items-center justify-center">
+                      <input {...getInputProps()} />
+                      <div className="text-center">
+                        <Upload className="w-6 h-6 text-muted-foreground mx-auto mb-2" />
+                        <p className="text-xs text-muted-foreground">Upload</p>
+                      </div>
+                    </CardContent>
+                  </Card>
+                  <Card
+                    className="border-2 border-dashed border-muted-foreground/25 hover:border-primary/50 cursor-pointer transition-colors"
+                    onClick={() => setAssetLibraryOpen(true)}
+                  >
+                    <CardContent className="p-0 aspect-square flex items-center justify-center">
+                      <div className="text-center">
+                        <FolderOpen className="w-6 h-6 text-muted-foreground mx-auto mb-2" />
+                        <p className="text-xs text-muted-foreground">Library</p>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </>
               )}
             </div>
 
@@ -716,6 +782,18 @@ export function CampaignSetup({ onNext }: CampaignSetupProps) {
           )}
         </Button>
       </div>
+
+      {/* Asset Library Modal */}
+      <AssetLibraryModal
+        isOpen={assetLibraryOpen}
+        onClose={() => setAssetLibraryOpen(false)}
+        onSelectAssets={handleAssetLibrarySelect}
+        multiSelect={true}
+        title="Select Product Images"
+        description="Choose images from your asset library for this campaign"
+        acceptedFileTypes={["image/*"]}
+        maxFileSize={10 * 1024 * 1024}
+      />
     </div>
   );
 }

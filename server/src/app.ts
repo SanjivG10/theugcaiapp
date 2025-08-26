@@ -14,6 +14,7 @@ import campaignRoutes from "./routes/campaigns";
 import { feedbackRoutes } from "./routes/feedback";
 import uploadRoutes from "./routes/upload";
 import voicesRoutes from "./routes/voices";
+import { assetLibraryRoutes } from "./routes/assetLibraryRoutes";
 import { env } from "./config/env";
 
 // Load environment variables
@@ -57,6 +58,7 @@ app.use("/api/campaigns", campaignRoutes);
 app.use("/api/feedback", feedbackRoutes);
 app.use("/api/upload", uploadRoutes);
 app.use("/api/voices", voicesRoutes);
+app.use("/api/asset-library", assetLibraryRoutes);
 
 // 404 handler
 app.use("*everything", (req, res) => {

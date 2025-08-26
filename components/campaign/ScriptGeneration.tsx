@@ -16,11 +16,9 @@ import { useCampaign } from "@/contexts/CampaignContext";
 import { api } from "@/lib/api";
 import {
   Clock,
-  Edit3,
   FileText,
   Hash,
   Loader2,
-  Play,
   RefreshCw,
   Sparkles,
 } from "lucide-react";
@@ -41,15 +39,14 @@ interface ScriptGenerationProps {
 interface SceneScript {
   id: string;
   sceneNumber: number;
-  mode: "ai" | "manual";
   content: string;
-  aiPrompt?: string;
-  isGenerating?: boolean;
 }
 
 export function ScriptGeneration({ onNext, onPrev }: ScriptGenerationProps) {
   const { state, dispatch } = useCampaign();
   const [sceneScripts, setSceneScripts] = useState<SceneScript[]>([]);
+  const [adPrompt, setAdPrompt] = useState("");
+  const [isGenerating, setIsGenerating] = useState(false);
   const [globalSettings, setGlobalSettings] = useState({
     tone: "energetic",
     style: "product-showcase",
@@ -58,36 +55,30 @@ export function ScriptGeneration({ onNext, onPrev }: ScriptGenerationProps) {
   // Initialize scene scripts when component loads or number of scenes changes
   React.useEffect(() => {
     if (state.numberOfScenes > 0) {
-      const newSceneScripts: SceneScript[] = Array.from(
-        { length: state.numberOfScenes },
-        (_, index) => {
-          const sceneNumber = index + 1;
-          const existingScene = sceneScripts.find(
-            (s) => s.sceneNumber === sceneNumber
-          );
-
-          return (
-            existingScene || {
-              id: `scene-${sceneNumber}`,
-              sceneNumber,
-              mode: "ai",
-              content: "",
-              aiPrompt: "",
-              isGenerating: false,
-            }
-          );
-        }
-      );
-
       // Load from saved state if available
       if (state.sceneScripts && state.sceneScripts.length > 0) {
-        const savedScripts = state.sceneScripts.slice(0, state.numberOfScenes);
+        const savedScripts = state.sceneScripts
+          .slice(0, state.numberOfScenes)
+          .map((scene) => ({
+            id: scene.id,
+            sceneNumber: scene.sceneNumber,
+            content: scene.content,
+          }));
         setSceneScripts(savedScripts);
       } else {
+        // Initialize empty scripts for each scene
+        const newSceneScripts: SceneScript[] = Array.from(
+          { length: state.numberOfScenes },
+          (_, index) => ({
+            id: `scene-${index + 1}`,
+            sceneNumber: index + 1,
+            content: "",
+          })
+        );
         setSceneScripts(newSceneScripts);
       }
     }
-  }, [state.numberOfScenes, state.campaignId]);
+  }, [state.numberOfScenes, state.sceneScripts]);
 
   React.useEffect(() => {
     if (state.scriptSettings) {
@@ -120,117 +111,105 @@ export function ScriptGeneration({ onNext, onPrev }: ScriptGenerationProps) {
     fetchCredits();
   }, []);
 
-  const generateSceneScript = useCallback(
-    async (sceneIndex: number) => {
-      // Check credits before generating
-      try {
-        const creditCheckResponse = await api.checkCredits({
-          action: "VIDEO_SCRIPT_GENERATION",
-        });
+  const generateAllSceneScripts = useCallback(async () => {
+    if (!adPrompt.trim()) {
+      toast.error("Please enter an ad script prompt");
+      return;
+    }
 
-        if (!creditCheckResponse.data?.can_proceed) {
-          setShowCreditModal(true);
-          return;
-        }
-      } catch (error) {
-        console.error("Failed to check credits:", error);
-        toast.error("Failed to check credits");
+    // Check credits before generating
+    try {
+      const creditCheckResponse = await api.checkCredits({
+        action: "VIDEO_SCRIPT_GENERATION",
+      });
+
+      if (!creditCheckResponse.data?.can_proceed) {
+        setShowCreditModal(true);
         return;
       }
+    } catch (error) {
+      console.error("Failed to check credits:", error);
+      toast.error("Failed to check credits");
+      return;
+    }
 
-      // Set generating state for this scene
+    setIsGenerating(true);
+
+    // Clear existing scene scripts
+    setSceneScripts((prev) => prev.map((scene) => ({ ...scene, content: "" })));
+
+    try {
+      // Call the streaming script generation API for all scenes
+      const stream = await api.generateScriptStream({
+        campaignId: state.campaignId as string,
+        sceneNumber: 1, // Not used for batch generation
+        productName: state.campaignName || "Product",
+        objective: state.campaignObjective || "brand-awareness",
+        tone: globalSettings.tone,
+        style: globalSettings.style,
+        customPrompt: adPrompt,
+        totalScenes: state.numberOfScenes,
+      });
+
+      const reader = stream.getReader();
+      const decoder = new TextDecoder();
+      let generatedContent = "";
+      // Read the stream
+      while (true) {
+        const { done, value } = await reader.read();
+
+        if (done) break;
+
+        const chunk = decoder.decode(value);
+        generatedContent += chunk;
+      }
+
+      // Parse the final result
+      let finalScripts: string[];
+      try {
+        const parsed = JSON.parse(generatedContent);
+        if (Array.isArray(parsed) && parsed.length === state.numberOfScenes) {
+          finalScripts = parsed;
+        } else {
+          // Fallback: split by double newlines if not proper JSON array
+          finalScripts = generatedContent
+            .split("\n\n")
+            .slice(0, state.numberOfScenes);
+        }
+      } catch {
+        // Fallback: split by double newlines
+        finalScripts = generatedContent
+          .split("\n\n")
+          .slice(0, state.numberOfScenes);
+      }
+
+      // Update scene scripts with parsed content
       setSceneScripts((prev) =>
-        prev.map((scene) =>
-          scene.sceneNumber === sceneIndex + 1
-            ? { ...scene, isGenerating: true, content: "" }
-            : scene
-        )
+        prev.map((scene, index) => ({
+          ...scene,
+          content: finalScripts[index] || "",
+        }))
       );
 
-      try {
-        const currentScene = sceneScripts[sceneIndex];
-        const sceneNumber = sceneIndex + 1;
-
-        // Call the streaming script generation API
-        const stream = await api.generateScriptStream({
-          campaignId: state.campaignId as string,
-          sceneNumber,
-          productName: state.campaignName || "Product",
-          objective: state.campaignObjective || "brand-awareness",
-          tone: globalSettings.tone,
-          style: globalSettings.style,
-          customPrompt: currentScene.aiPrompt,
-        });
-
-        const reader = stream.getReader();
-        const decoder = new TextDecoder();
-        let generatedContent = "";
-
-        // Read the stream
-        while (true) {
-          const { done, value } = await reader.read();
-          
-          if (done) break;
-          
-          const chunk = decoder.decode(value);
-          generatedContent += chunk;
-          
-          // Update the scene content in real-time
-          setSceneScripts((prev) =>
-            prev.map((scene) =>
-              scene.sceneNumber === sceneNumber
-                ? { ...scene, content: generatedContent }
-                : scene
-            )
-          );
-        }
-
-        // Final update with generating state false
-        setSceneScripts((prev) =>
-          prev.map((scene) =>
-            scene.sceneNumber === sceneNumber
-              ? { ...scene, content: generatedContent, isGenerating: false }
-              : scene
-          )
-        );
-
-        // Consume credits for script generation
-        try {
-          await api.consumeCredits({
-            action: "VIDEO_SCRIPT_GENERATION",
-            campaign_id: state.campaignId,
-            scenes: 1,
-            tone: globalSettings.tone,
-            style: globalSettings.style,
-          });
-          setCurrentCredits((prev) => prev - 1);
-        } catch (error) {
-          console.error("Failed to consume credits:", error);
-        }
-
-        toast.success(`Scene ${sceneNumber} script generated!`);
-      } catch (error) {
-        console.error("Failed to generate script:", error);
-        toast.error("Failed to generate script. Please try again.");
-        setSceneScripts((prev) =>
-          prev.map((scene) =>
-            scene.sceneNumber === sceneIndex + 1
-              ? { ...scene, isGenerating: false }
-              : scene
-          )
-        );
-      }
-    },
-    [
-      state.campaignName,
-      state.campaignObjective,
-      state.campaignId,
-      globalSettings,
-      sceneScripts,
-      setCurrentCredits,
-      setShowCreditModal,
-    ]
-  );
+      // Credits are consumed by the API endpoint
+      setCurrentCredits((prev) => prev - 1);
+      toast.success(`All ${state.numberOfScenes} scene scripts generated!`);
+    } catch (error) {
+      console.error("Failed to generate scripts:", error);
+      toast.error("Failed to generate scripts. Please try again.");
+    } finally {
+      setIsGenerating(false);
+    }
+  }, [
+    adPrompt,
+    state.campaignName,
+    state.campaignObjective,
+    state.campaignId,
+    state.numberOfScenes,
+    globalSettings,
+    setCurrentCredits,
+    setShowCreditModal,
+  ]);
 
   const updateSceneContent = (sceneIndex: number, content: string) => {
     setSceneScripts((prev) =>
@@ -240,22 +219,13 @@ export function ScriptGeneration({ onNext, onPrev }: ScriptGenerationProps) {
     );
   };
 
-  const updateSceneMode = (sceneIndex: number, mode: "ai" | "manual") => {
-    setSceneScripts((prev) =>
-      prev.map((scene) =>
-        scene.sceneNumber === sceneIndex + 1
-          ? { ...scene, mode, content: mode === "ai" ? scene.content : "" }
-          : scene
-      )
-    );
+  const regenerateAllScripts = () => {
+    generateAllSceneScripts();
   };
 
-  const updateScenePrompt = (sceneIndex: number, aiPrompt: string) => {
-    setSceneScripts((prev) =>
-      prev.map((scene) =>
-        scene.sceneNumber === sceneIndex + 1 ? { ...scene, aiPrompt } : scene
-      )
-    );
+  const clearAllScripts = () => {
+    setSceneScripts((prev) => prev.map((scene) => ({ ...scene, content: "" })));
+    setAdPrompt("");
   };
 
   const estimateDuration = (text: string) => {
@@ -298,9 +268,17 @@ export function ScriptGeneration({ onNext, onPrev }: ScriptGenerationProps) {
       .filter((content) => content)
       .join("\n\n");
 
+    // Convert to context-compatible format
+    const contextSceneScripts = sceneScripts.map((scene) => ({
+      ...scene,
+      mode: "ai" as const,
+      aiPrompt: adPrompt,
+      isGenerating: false,
+    }));
+
     // Update context first
     dispatch({ type: "SET_SCRIPT", payload: combinedScript });
-    dispatch({ type: "SET_SCENE_SCRIPTS", payload: sceneScripts });
+    dispatch({ type: "SET_SCENE_SCRIPTS", payload: contextSceneScripts });
     dispatch({ type: "SET_SCRIPT_SETTINGS", payload: globalSettings });
 
     // Save script data if we have a campaign ID
@@ -308,7 +286,7 @@ export function ScriptGeneration({ onNext, onPrev }: ScriptGenerationProps) {
       try {
         const stepData = {
           script: combinedScript,
-          sceneScripts,
+          sceneScripts: contextSceneScripts,
           scriptSettings: globalSettings,
         };
 
@@ -339,25 +317,27 @@ export function ScriptGeneration({ onNext, onPrev }: ScriptGenerationProps) {
         </p>
       </div>
 
-      {/* Global Settings */}
+      {/* Ad Script Generation */}
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
             <div>
-              <CardTitle>Global AI Settings</CardTitle>
+              <CardTitle>Generate Ad Script</CardTitle>
               <p className="text-sm text-muted-foreground">
-                These settings apply to all AI-generated scenes
+                Describe your ad concept and AI will create scripts for all{" "}
+                {state.numberOfScenes} scenes
               </p>
             </div>
             <CreditDisplay
               action="VIDEO_SCRIPT_GENERATION"
               currentCredits={currentCredits}
               onPurchaseClick={() => setShowCreditModal(true)}
-              numberOfScenes={state.numberOfScenes}
+              numberOfScenes={1}
             />
           </div>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-4">
+          {/* Global Settings */}
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="text-sm font-medium mb-2 block">Tone</label>
@@ -366,6 +346,7 @@ export function ScriptGeneration({ onNext, onPrev }: ScriptGenerationProps) {
                 onValueChange={(value: string) =>
                   setGlobalSettings((prev) => ({ ...prev, tone: value }))
                 }
+                disabled={isGenerating}
               >
                 <SelectTrigger>
                   <SelectValue />
@@ -387,6 +368,7 @@ export function ScriptGeneration({ onNext, onPrev }: ScriptGenerationProps) {
                 onValueChange={(value: string) =>
                   setGlobalSettings((prev) => ({ ...prev, style: value }))
                 }
+                disabled={isGenerating}
               >
                 <SelectTrigger>
                   <SelectValue />
@@ -404,133 +386,125 @@ export function ScriptGeneration({ onNext, onPrev }: ScriptGenerationProps) {
               </Select>
             </div>
           </div>
+
+          {/* Ad Prompt Input */}
+          <div>
+            <label className="text-sm font-medium mb-2 block">
+              Ad Script Prompt
+            </label>
+            <Textarea
+              value={adPrompt}
+              onChange={(e) => setAdPrompt(e.target.value)}
+              placeholder="Describe your ad concept (e.g., 'Create a compelling ad for our new fitness tracker that shows how it helps busy professionals stay healthy. Start with a problem, introduce the product, show benefits, and end with a call to action.')"
+              className="min-h-[120px] text-sm"
+              disabled={isGenerating}
+            />
+          </div>
+
+          {/* Generate Actions */}
+          <div className="flex justify-between items-center">
+            <div className="flex space-x-2">
+              {sceneScripts.some((s) => s.content.trim()) && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={clearAllScripts}
+                  disabled={isGenerating}
+                >
+                  Clear All
+                </Button>
+              )}
+              {sceneScripts.some((s) => s.content.trim()) && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={regenerateAllScripts}
+                  disabled={isGenerating || !adPrompt.trim()}
+                >
+                  <RefreshCw className="w-4 h-4 mr-1" />
+                  Regenerate
+                </Button>
+              )}
+            </div>
+
+            <Button
+              onClick={generateAllSceneScripts}
+              disabled={isGenerating || !adPrompt.trim()}
+            >
+              {isGenerating ? (
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              ) : (
+                <Sparkles className="w-4 h-4 mr-2" />
+              )}
+              {isGenerating
+                ? "Generating Scripts..."
+                : "Generate All Scene Scripts"}
+            </Button>
+          </div>
         </CardContent>
       </Card>
 
-      {/* Scene Scripts */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {sceneScripts.map((scene, index) => (
-          <Card key={scene.id} className="">
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <CardTitle className="flex items-center space-x-2">
-                  <div className="w-8 h-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-sm font-medium">
-                    {scene.sceneNumber}
-                  </div>
-                  <span>Scene {scene.sceneNumber}</span>
-                </CardTitle>
+      {/* Scene Scripts Display */}
+      {sceneScripts.some((s) => s.content.trim()) && (
+        <div className="space-y-6">
+          <div className="flex items-center justify-between">
+            <h3 className="text-lg font-semibold">Generated Scene Scripts</h3>
+            <div className="text-sm text-muted-foreground">
+              {getCompletedScenesCount()}/{state.numberOfScenes} scenes
+              completed
+            </div>
+          </div>
 
-                {/* AI/Manual Toggle */}
-                <div className="flex items-center gap-2">
-                  <Button
-                    variant={scene.mode === "ai" ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => updateSceneMode(index, "ai")}
-                    className="h-8 px-3 text-xs"
-                  >
-                    <Sparkles className="w-3 h-3 mr-1" />
-                    AI
-                  </Button>
-                  <Button
-                    variant={scene.mode === "manual" ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => updateSceneMode(index, "manual")}
-                    className="h-8 px-3 text-xs"
-                  >
-                    <Edit3 className="w-3 h-3 mr-1" />
-                    Manual
-                  </Button>
-                </div>
-              </div>
-            </CardHeader>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {sceneScripts.map((scene, index) => (
+              <Card key={scene.id}>
+                <CardHeader>
+                  <CardTitle className="flex items-center space-x-2">
+                    <div className="w-8 h-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-sm font-medium">
+                      {scene.sceneNumber}
+                    </div>
+                    <span>Scene {scene.sceneNumber}</span>
+                  </CardTitle>
+                </CardHeader>
 
-            <CardContent className="space-y-4">
-              {/* AI Mode - Prompt Input */}
-              {scene.mode === "ai" && (
-                <div className="space-y-3">
+                <CardContent className="space-y-4">
+                  {/* Script Content */}
                   <div>
                     <label className="text-sm font-medium mb-2 block">
-                      Custom Prompt (Optional)
+                      Script Content
                     </label>
                     <Textarea
-                      value={scene.aiPrompt || ""}
-                      onChange={(e) => updateScenePrompt(index, e.target.value)}
-                      placeholder="Add specific instructions for this scene (e.g., 'Focus on product benefits', 'Include testimonial', etc.)"
-                      className="min-h-[80px] text-sm"
+                      value={scene.content}
+                      onChange={(e) =>
+                        updateSceneContent(index, e.target.value)
+                      }
+                      placeholder="Scene script will appear here after generation..."
+                      className="min-h-[150px] text-sm leading-relaxed"
                     />
                   </div>
 
-                  {/* Generate Button */}
-                  <div className="flex justify-end">
-                    <Button
-                      onClick={() => generateSceneScript(index)}
-                      disabled={scene.isGenerating}
-                      size="sm"
-                    >
-                      {scene.isGenerating ? (
-                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      ) : (
-                        <Sparkles className="w-4 h-4 mr-2" />
-                      )}
-                      {scene.isGenerating
-                        ? "Generating..."
-                        : "Generate AI Script"}
-                    </Button>
-                  </div>
-                </div>
-              )}
-
-              {/* Script Content */}
-              <div>
-                <label className="text-sm font-medium mb-2 block">
-                  Script Content
-                </label>
-                {scene.isGenerating ? (
-                  <div className="flex items-center justify-center py-8 border border-dashed rounded-lg">
-                    <div className="text-center">
-                      <Loader2 className="w-6 h-6 animate-spin mx-auto mb-2 text-primary" />
-                      <p className="text-sm text-muted-foreground">
-                        Generating scene {scene.sceneNumber}...
-                      </p>
+                  {/* Scene Stats */}
+                  {scene.content && (
+                    <div className="flex items-center space-x-4 text-xs text-muted-foreground border-t pt-3">
+                      <div className="flex items-center space-x-1">
+                        <Hash className="w-3 h-3" />
+                        <span>
+                          {scene.content.split(/\s+/).filter((w) => w).length}{" "}
+                          words
+                        </span>
+                      </div>
+                      <div className="flex items-center space-x-1">
+                        <Clock className="w-3 h-3" />
+                        <span>~{estimateDuration(scene.content)}s</span>
+                      </div>
                     </div>
-                  </div>
-                ) : (
-                  <Textarea
-                    value={scene.content}
-                    onChange={(e) => updateSceneContent(index, e.target.value)}
-                    placeholder={
-                      scene.mode === "ai"
-                        ? "Click 'Generate AI Script' to create content for this scene"
-                        : "Write your custom script for this scene"
-                    }
-                    className={`text-sm leading-relaxed ${
-                      scene.mode === "manual"
-                        ? "min-h-[200px]"
-                        : "min-h-[120px]"
-                    }`}
-                  />
-                )}
-              </div>
-
-              {/* Scene Stats */}
-              {scene.content && (
-                <div className="flex items-center space-x-4 text-xs text-muted-foreground border-t pt-3">
-                  <div className="flex items-center space-x-1">
-                    <Hash className="w-3 h-3" />
-                    <span>
-                      {scene.content.split(/\s+/).filter((w) => w).length} words
-                    </span>
-                  </div>
-                  <div className="flex items-center space-x-1">
-                    <Clock className="w-3 h-3" />
-                    <span>~{estimateDuration(scene.content)}s</span>
-                  </div>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+                  )}
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Overall Stats */}
       <Card>
@@ -582,9 +556,7 @@ export function ScriptGeneration({ onNext, onPrev }: ScriptGenerationProps) {
         <Button
           onClick={handleNext}
           disabled={
-            getCompletedScenesCount() === 0 ||
-            isLoading ||
-            sceneScripts.some((s) => s.isGenerating)
+            getCompletedScenesCount() === 0 || isLoading || isGenerating
           }
           className="px-8"
         >

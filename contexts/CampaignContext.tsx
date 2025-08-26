@@ -115,7 +115,10 @@ type CampaignAction =
       payload: { id: string; updates: Partial<GeneratedVideo> };
     }
   | { type: "SET_FINAL_VIDEO_URL"; payload: string }
-  | { type: "UPDATE_SCENE_DATA"; payload: { sceneNumber: number; data: Partial<SceneData> } }
+  | {
+      type: "UPDATE_SCENE_DATA";
+      payload: { sceneNumber: number; data: Partial<SceneData> };
+    }
   | { type: "INITIALIZE_SCENES_DATA"; payload: number }
   | { type: "LOAD_CAMPAIGN_DATA"; payload: Partial<CampaignState> };
 
@@ -331,24 +334,10 @@ export function CampaignProvider({
 
         // Load script from step 2 (matches API response structure)
         if (stepData.step_2?.script) loadedData.script = stepData.step_2.script;
-        if (stepData.step_2?.scriptMode)
-          loadedData.scriptMode = stepData.step_2.scriptMode;
         if (stepData.step_2?.scriptSettings)
           loadedData.scriptSettings = stepData.step_2.scriptSettings;
         if (stepData.step_2?.sceneScripts)
           loadedData.sceneScripts = stepData.step_2.sceneScripts;
-
-        // Legacy: Load product images from step 2 (if stored there for backward compatibility)
-        if (stepData.step_2?.productImages && !loadedData.productImages) {
-          loadedData.productImages = stepData.step_2.productImages.map(
-            (image) => ({
-              id: image.id,
-              url: image.url,
-              name: image.name,
-              // Don't include file property for uploaded images
-            })
-          );
-        }
 
         // Load generated images from step 3
         if (stepData.step_3?.generatedImages)
@@ -369,6 +358,66 @@ export function CampaignProvider({
         // Load final video URL from step 7
         if (stepData.step_7?.finalVideoUrl)
           loadedData.finalVideoUrl = stepData.step_7.finalVideoUrl;
+      }
+
+      // Load scenes_data from the new column if available
+      if (campaignData.scenes_data && Array.isArray(campaignData.scenes_data)) {
+        const scenesData = campaignData.scenes_data as Array<{
+          index: number;
+          script?: string;
+          image_url?: string;
+          video_url?: string;
+          audio_url?: string;
+        }>;
+
+        loadedData.scenesData = scenesData.map((scene) => ({
+          sceneNumber: scene.index,
+          selectedImages: [],
+          script: scene.script
+            ? {
+                id: `script_${scene.index}_loaded`,
+                sceneNumber: scene.index,
+                mode: "ai" as const,
+                content: scene.script,
+              }
+            : undefined,
+          generatedImage: scene.image_url
+            ? {
+                id: `image_${scene.index}_loaded`,
+                url: scene.image_url,
+                sceneNumber: scene.index,
+                prompt: "",
+                approved: false,
+              }
+            : undefined,
+          audioUrl: scene.audio_url,
+          videoUrl: scene.video_url,
+        }));
+
+        // Also populate sceneScripts for ScriptGeneration component compatibility
+        loadedData.sceneScripts = scenesData
+          .filter((scene) => scene.script)
+          .map((scene) => ({
+            id: `script_${scene.index}_loaded`,
+            sceneNumber: scene.index,
+            mode: "ai" as const,
+            content: scene.script!,
+            aiPrompt: "",
+            isGenerating: false,
+          }));
+
+        // Also add generated images to generatedImages array for backwards compatibility
+        const generatedImagesFromScenes = scenesData
+          .filter((scene) => scene.image_url)
+          .map((scene) => ({
+            id: `image_${scene.index}_loaded`,
+            url: scene.image_url!,
+            sceneNumber: scene.index,
+            prompt: "",
+            approved: false,
+          }));
+        
+        loadedData.generatedImages = [...(loadedData.generatedImages || []), ...generatedImagesFromScenes];
       }
 
       dispatch({ type: "LOAD_CAMPAIGN_DATA", payload: loadedData });

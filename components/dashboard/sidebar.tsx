@@ -9,6 +9,7 @@ import {
   AlertCircle,
   BarChart3,
   CheckCircle2,
+  FolderOpen,
   Home,
   LogOut,
   Menu,
@@ -23,6 +24,7 @@ import { useEffect, useState } from "react";
 const navigation = [
   { name: "Dashboard", href: URLS.DASHBOARD.HOME, icon: Home },
   { name: "Campaigns", href: URLS.DASHBOARD.CAMPAIGNS, icon: Target },
+  { name: "Asset Library", href: URLS.DASHBOARD.ASSET_LIBRARY, icon: FolderOpen },
   { name: "Analytics", href: URLS.DASHBOARD.ANALYTICS, icon: BarChart3 },
   { name: "Profile", href: URLS.DASHBOARD.PROFILE, icon: User },
   { name: "Feedback", href: "/feedback", icon: MessageSquare },

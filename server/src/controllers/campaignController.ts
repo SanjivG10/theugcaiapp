@@ -4,6 +4,8 @@ import { openaiService } from "../services/openaiService";
 import { Campaign, ApiResponse, PaginatedResponse } from "../types/database";
 import { z } from "zod";
 import { supabaseAdmin } from "../config/supabase";
+import { CreditService } from "../services/creditService";
+import { v4 as uuidv4 } from "uuid";
 
 // Type for campaign with business information
 type CampaignWithBusiness = Campaign & {
@@ -50,7 +52,7 @@ const saveCampaignStepDataSchema = z.object({
 
 const generateScriptSchema = z.object({
   campaignId: z.string(),
-  sceneNumber: z.number().int().min(1),
+  sceneNumber: z.number().int().min(1).optional(), // Optional for batch generation
   productName: z.string().min(1),
   objective: z.string().min(1),
   tone: z.string().min(1),
@@ -63,7 +65,7 @@ const generateImageSchema = z.object({
   campaignId: z.string(),
   sceneNumber: z.number().int().min(1),
   scriptText: z.string().min(1),
-  selectedImageIds: z.array(z.string()),
+  imageUrls: z.array(z.string()),
   imageDescription: z.string().optional(),
 });
 
@@ -169,7 +171,7 @@ export class CampaignController {
 
       const { data: campaign, error } = await supabaseAdmin
         .from("campaigns")
-        .select("*")
+        .select("*, scenes_data")
         .eq("id", id)
         .eq("user_id", userId)
         .single();
@@ -934,7 +936,6 @@ export class CampaignController {
 
       const {
         campaignId,
-        sceneNumber,
         productName,
         objective,
         tone,
@@ -946,7 +947,7 @@ export class CampaignController {
       // Check if campaign exists and belongs to user
       const { data: campaign, error: fetchError } = await supabaseAdmin
         .from("campaigns")
-        .select("id, name, settings")
+        .select("id, name, scenes_data, business_id")
         .eq("id", campaignId)
         .eq("user_id", userId)
         .single();
@@ -968,75 +969,115 @@ export class CampaignController {
       });
 
       try {
+        // Consume credits first (once for all scenes)
+        try {
+          await CreditService.consumeCredits(
+            campaign.business_id,
+            "VIDEO_SCRIPT_GENERATION",
+            userId,
+            {
+              campaign_id: campaignId,
+              total_scenes: totalScenes,
+            }
+          );
+        } catch (creditError) {
+          console.error("Error consuming credits:", creditError);
+          return res.status(400).json({
+            success: false,
+            message: "Insufficient credits",
+          });
+        }
+
         // Generate script using OpenAI streaming
-        const response = await openaiService.generateScript({
+        const stream = await openaiService.generateScript({
           productName,
           campaignName: campaign.name,
           objective,
           tone,
           style,
-          sceneNumber,
-          customPrompt,
           totalScenes,
+          customPrompt,
         });
 
-        const generatedScript = response;
+        let generatedScripts = "";
+        for await (const chunk of stream) {
+          if (
+            chunk.choices &&
+            chunk.choices[0] &&
+            chunk.choices[0].delta &&
+            chunk.choices[0].delta.content
+          ) {
+            const content = chunk.choices[0].delta.content;
+            if (content) {
+              generatedScripts += content;
+              res.write(content);
+            }
+          }
+        }
 
-        // Save the generated script to step data with structured scene mapping
-        if (campaign) {
-          const currentStepData =
-            (campaign.settings as Record<string, unknown>) || {};
-          const scenesData =
-            (currentStepData.scenesData as Array<{
-              sceneNumber: number;
-              selectedImages?: string[];
-              generatedImage?: unknown;
-              script?: unknown;
-            }>) || [];
+        res.end();
 
-          // Find or create the scene data
-          const sceneIndex = scenesData.findIndex(
-            (s) => s.sceneNumber === sceneNumber
+        // Parse the JSON array response from OpenAI
+        let parsedScripts: string[] = [];
+        try {
+          const parsed = JSON.parse(generatedScripts.trim());
+          if (Array.isArray(parsed) && parsed.length === totalScenes) {
+            parsedScripts = parsed;
+          } else {
+            // Fallback: split by double newlines
+            parsedScripts = generatedScripts
+              .split("\n\n")
+              .slice(0, totalScenes);
+          }
+        } catch (parseError) {
+          // Fallback: split by double newlines
+          parsedScripts = generatedScripts.split("\n\n").slice(0, totalScenes);
+        }
+
+        // Save the generated scripts to scenes_data
+        const currentScenesData =
+          (campaign.scenes_data as Array<{
+            index: number;
+            script?: string;
+            image_url?: string;
+            video_url?: string;
+            audio_url?: string;
+          }>) || [];
+
+        // Update or create scene entries for all scenes
+        for (let i = 0; i < totalScenes; i++) {
+          const sceneIndex = i + 1;
+          const scriptContent = parsedScripts[i] || "";
+
+          const existingSceneIndex = currentScenesData.findIndex(
+            (scene) => scene.index === sceneIndex
           );
-          const scriptData = {
-            id: `script_${sceneNumber}_${Date.now()}`,
-            sceneNumber,
-            mode: "ai",
-            content: generatedScript,
-            aiPrompt: customPrompt,
-            generatedAt: new Date().toISOString(),
-          };
 
-          if (sceneIndex !== -1) {
+          if (existingSceneIndex !== -1) {
             // Update existing scene
-            scenesData[sceneIndex] = {
-              ...scenesData[sceneIndex],
-              script: scriptData,
+            currentScenesData[existingSceneIndex] = {
+              ...currentScenesData[existingSceneIndex],
+              script: scriptContent.trim(),
             };
           } else {
-            // Create new scene data
-            scenesData.push({
-              sceneNumber,
-              selectedImages: [],
-              script: scriptData,
+            // Create new scene entry
+            currentScenesData.push({
+              index: sceneIndex,
+              script: scriptContent.trim(),
             });
           }
-
-          const stepData = {
-            ...currentStepData,
-            [`scene_${sceneNumber}_script`]: generatedScript,
-            [`scene_${sceneNumber}_generated_at`]: new Date().toISOString(),
-            scenesData, // Add structured scene data
-          };
-
-          await supabaseAdmin
-            .from("campaigns")
-            .update({
-              settings: stepData,
-              updated_at: new Date().toISOString(),
-            })
-            .eq("id", campaignId);
         }
+
+        // Sort scenes by index
+        currentScenesData.sort((a, b) => a.index - b.index);
+
+        await supabaseAdmin
+          .from("campaigns")
+          .update({
+            scenes_data: currentScenesData,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", campaignId);
       } catch (error) {
         console.error("Error generating script:", error);
         res.write("\n\nError generating script. Please try again.");
@@ -1074,14 +1115,14 @@ export class CampaignController {
         campaignId,
         sceneNumber,
         scriptText,
-        selectedImageIds,
+        imageUrls,
         imageDescription,
       } = validation.data;
 
       // Check if campaign exists and belongs to user
       const { data: campaign, error: fetchError } = await supabaseAdmin
         .from("campaigns")
-        .select("id, name, settings")
+        .select("id, name, scenes_data, business_id, settings")
         .eq("id", campaignId)
         .eq("user_id", userId)
         .single();
@@ -1093,26 +1134,12 @@ export class CampaignController {
         });
       }
 
-      // Get the selected product images from step data
-      const stepData = (campaign.settings as Record<string, unknown>) || {};
-      const productImages =
-        (stepData.productImages as {
-          id: string;
-          url: string;
-          name: string;
-        }[]) || [];
-      const selectedImages = productImages.filter((img) =>
-        selectedImageIds.includes(img.id)
-      );
-
-      if (selectedImages.length === 0) {
+      if (imageUrls.length === 0) {
         return res.status(400).json({
           success: false,
           message: "Selected product images not found",
         });
       }
-
-      const generatedImageId = `gen_${Date.now()}_scene_${sceneNumber}`;
 
       try {
         // Generate image using OpenAI DALL-E
@@ -1120,7 +1147,7 @@ export class CampaignController {
           scriptText,
           sceneNumber,
           imageDescription,
-          imageUrls: selectedImages.map((img) => img.url),
+          imageUrls,
         });
 
         if (!imageResponse.data || imageResponse.data.length === 0) {
@@ -1128,21 +1155,28 @@ export class CampaignController {
         }
 
         const generatedImageUrl = imageResponse.data[0].url;
-        if (!generatedImageUrl) {
-          throw new Error("No image URL returned");
+        const generatedImageBuffer = imageResponse.data?.[0]?.b64_json ?? "";
+        if (!generatedImageUrl && !generatedImageBuffer) {
+          throw new Error("No images");
         }
 
         // Download the generated image
-        const imageBuffer = await openaiService.downloadImageAsBuffer(
-          generatedImageUrl
-        );
+        const imageBuffer = generatedImageBuffer
+          ? Buffer.from(generatedImageBuffer, "base64")
+          : generatedImageUrl
+          ? await openaiService.downloadImageAsBuffer(generatedImageUrl)
+          : null;
+
+        if (!imageBuffer) {
+          throw new Error("No image buffer");
+        }
 
         // Upload to Supabase storage
-        const filename = `campaigns/${campaignId}/generated/${generatedImageId}.jpg`;
+        const filename = `${userId}/${campaignId}/generated/${uuidv4()}.png`;
         const { error: uploadError } = await supabaseAdmin.storage
-          .from("campaign-assets")
+          .from("campaigns")
           .upload(filename, imageBuffer, {
-            contentType: "image/jpeg",
+            contentType: "image/png",
             upsert: true,
           });
 
@@ -1154,67 +1188,73 @@ export class CampaignController {
         // Get the public URL
         const {
           data: { publicUrl },
-        } = supabaseAdmin.storage
-          .from("campaign-assets")
-          .getPublicUrl(filename);
+        } = supabaseAdmin.storage.from("campaigns").getPublicUrl(filename);
 
-        const generatedImageData = {
-          id: generatedImageId,
-          url: publicUrl,
-          prompt: imageResponse.data[0].revised_prompt || scriptText,
-          sceneNumber,
-          selectedImageIds,
-          createdAt: new Date().toISOString(),
-          storagePath: filename,
-        };
+        // Consume credits for image generation
+        try {
+          await CreditService.consumeCredits(
+            campaign.business_id,
+            "IMAGE_GENERATION",
+            userId,
+            {
+              campaign_id: campaignId,
+              scene_number: sceneNumber,
+              prompt: scriptText,
+            }
+          );
+        } catch (error) {
+          console.error("Failed to consume credits:", error);
+        }
 
-        // Save to campaign step data with structured scene mapping
-        const currentStepData =
-          (campaign.settings as Record<string, unknown>) || {};
-        const scenesData =
-          (currentStepData.scenesData as Array<{
-            sceneNumber: number;
-            selectedImages?: string[];
-            generatedImage?: unknown;
-            script?: unknown;
+        // Save the generated image to scenes_data
+        const currentScenesData =
+          (campaign.scenes_data as Array<{
+            index: number;
+            script?: string;
+            image_url?: string;
+            video_url?: string;
+            audio_url?: string;
           }>) || [];
 
         // Find or create the scene data
-        const sceneIndex = scenesData.findIndex(
-          (s) => s.sceneNumber === sceneNumber
+        const sceneIndex = currentScenesData.findIndex(
+          (s) => s.index === sceneNumber
         );
+
         if (sceneIndex !== -1) {
           // Update existing scene
-          scenesData[sceneIndex] = {
-            ...scenesData[sceneIndex],
-            generatedImage: generatedImageData,
+          currentScenesData[sceneIndex] = {
+            ...currentScenesData[sceneIndex],
+            image_url: publicUrl,
           };
         } else {
           // Create new scene data
-          scenesData.push({
-            sceneNumber,
-            selectedImages: selectedImageIds,
-            generatedImage: generatedImageData,
+          currentScenesData.push({
+            index: sceneNumber,
+            image_url: publicUrl,
           });
         }
 
-        const updatedStepData = {
-          ...currentStepData,
-          [`scene_${sceneNumber}_generated_image`]: generatedImageData,
-          generatedImages: [
-            ...((currentStepData.generatedImages as unknown[]) || []),
-            generatedImageData,
-          ],
-          scenesData, // Add structured scene data
-        };
+        // Sort scenes by index
+        currentScenesData.sort((a, b) => a.index - b.index);
 
         await supabaseAdmin
           .from("campaigns")
           .update({
-            settings: updatedStepData,
+            scenes_data: currentScenesData,
             updated_at: new Date().toISOString(),
           })
           .eq("id", campaignId);
+
+        const generatedImageData = {
+          id: filename,
+          url: publicUrl,
+          prompt: imageResponse.data[0].revised_prompt || scriptText,
+          sceneNumber,
+          imageUrls,
+          createdAt: new Date().toISOString(),
+          storagePath: filename,
+        };
 
         return res.json({
           success: true,

@@ -15,6 +15,7 @@ export const URLS = {
     CAMPAIGNS: "/dashboard/campaigns",
     CAMPAIGNS_QUERY_CREATE: "/dashboard/campaigns?create=true",
     TEMPLATES: "/dashboard/templates",
+    ASSET_LIBRARY: "/asset-library",
     ANALYTICS: "/dashboard/analytics",
     SETTINGS: "/dashboard/settings",
     PROFILE: "/dashboard/profile",

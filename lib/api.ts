@@ -44,6 +44,15 @@ import {
   ProductImageUpload,
   VoiceData,
   VoicePreview,
+  AssetFolder,
+  AssetFile,
+  CreateAssetFolderRequest,
+  UpdateAssetFolderRequest,
+  UpdateAssetFileRequest,
+  GetAssetFilesOptions,
+  AssetFilesResponse,
+  GenerateAssetImageRequest,
+  GenerateAssetImageResponse,
 } from "@/types/api";
 
 class ApiClient {
@@ -55,7 +64,7 @@ class ApiClient {
       headers: {
         "Content-Type": "application/json",
       },
-      timeout: 10000,
+      timeout: 300_000, // 2 minutes
     });
 
     // Request interceptor to add auth token
@@ -482,15 +491,19 @@ class ApiClient {
     tone: string;
     style: string;
     customPrompt?: string;
+    totalScenes: number;
   }): Promise<ReadableStream> {
-    const response = await fetch(`${this.client.defaults.baseURL}/api/campaigns/generate-script`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${this.getAuthToken()}`,
-      },
-      body: JSON.stringify(data),
-    });
+    const response = await fetch(
+      `${this.client.defaults.baseURL}/api/campaigns/generate-script`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${this.getAuthToken()}`,
+        },
+        body: JSON.stringify(data),
+      }
+    );
 
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
@@ -503,13 +516,145 @@ class ApiClient {
     campaignId: string;
     sceneNumber: number;
     scriptText: string;
-    selectedImageIds: string[];
+    imageUrls: string[];
     imageDescription?: string;
-  }): Promise<ApiResponse<any>> {
-    const response = await this.client.post("/api/campaigns/generate-image", data);
+  }): Promise<
+    ApiResponse<{
+      id: string;
+      url: string;
+      prompt: string;
+      sceneNumber: number;
+      selectedImageIds: string[];
+      createdAt: string;
+      storagePath: string;
+    }>
+  > {
+    const response = await this.client.post(
+      "/api/campaigns/generate-image",
+      data
+    );
     return response.data;
   }
 
+  // Asset Library endpoints
+  async createAssetFolder(data: CreateAssetFolderRequest): Promise<ApiResponse<AssetFolder>> {
+    const response = await this.client.post("/api/asset-library/folders", data);
+    return response.data;
+  }
+
+  async getAssetFolders(params?: {
+    business_id?: string;
+    parent_folder_id?: string | null;
+  }): Promise<ApiResponse<AssetFolder[]>> {
+    const response = await this.client.get("/api/asset-library/folders", {
+      params,
+    });
+    return response.data;
+  }
+
+  async updateAssetFolder(
+    folderId: string,
+    data: UpdateAssetFolderRequest
+  ): Promise<ApiResponse<AssetFolder>> {
+    const response = await this.client.put(
+      `/api/asset-library/folders/${folderId}`,
+      data
+    );
+    return response.data;
+  }
+
+  async deleteAssetFolder(folderId: string): Promise<ApiResponse<void>> {
+    const response = await this.client.delete(
+      `/api/asset-library/folders/${folderId}`
+    );
+    return response.data;
+  }
+
+  async uploadAssetFile(formData: FormData): Promise<ApiResponse<AssetFile>> {
+    const response = await this.client.post(
+      "/api/asset-library/files/upload",
+      formData,
+      {
+        headers: {
+          "Content-Type": "multipart/form-data",
+        },
+      }
+    );
+    return response.data;
+  }
+
+  async generateAssetImage(data: GenerateAssetImageRequest): Promise<ApiResponse<GenerateAssetImageResponse>> {
+    const response = await this.client.post(
+      "/api/asset-library/files/generate",
+      data
+    );
+    return response.data;
+  }
+
+  async getAssetFiles(params?: GetAssetFilesOptions): Promise<ApiResponse<AssetFilesResponse>> {
+    const response = await this.client.get("/api/asset-library/files", {
+      params: {
+        ...params,
+        folder_id: params?.folder_id === null ? 'null' : params?.folder_id,
+      },
+    });
+    return response.data;
+  }
+
+  async getAssetFile(fileId: string): Promise<ApiResponse<AssetFile>> {
+    const response = await this.client.get(
+      `/api/asset-library/files/${fileId}`
+    );
+    return response.data;
+  }
+
+  async updateAssetFile(
+    fileId: string,
+    data: UpdateAssetFileRequest
+  ): Promise<ApiResponse<AssetFile>> {
+    const response = await this.client.put(
+      `/api/asset-library/files/${fileId}`,
+      data
+    );
+    return response.data;
+  }
+
+  async deleteAssetFile(fileId: string): Promise<ApiResponse<void>> {
+    const response = await this.client.delete(
+      `/api/asset-library/files/${fileId}`
+    );
+    return response.data;
+  }
+
+  async downloadAssetFile(fileId: string): Promise<void> {
+    const response = await this.client.get(
+      `/api/asset-library/files/${fileId}/download`,
+      {
+        responseType: 'blob',
+      }
+    );
+    
+    // Create download link
+    const url = window.URL.createObjectURL(new Blob([response.data]));
+    const link = document.createElement('a');
+    link.href = url;
+    
+    // Extract filename from Content-Disposition header or use default
+    const contentDisposition = response.headers['content-disposition'];
+    let filename = 'download';
+    if (contentDisposition) {
+      const matches = /filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/.exec(contentDisposition);
+      if (matches != null && matches[1]) {
+        filename = matches[1].replace(/['"]/g, '');
+      }
+    }
+    
+    link.setAttribute('download', filename);
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.URL.revokeObjectURL(url);
+  }
 }
 
 // Create and export the API client instance

@@ -429,6 +429,13 @@ export interface Campaign {
   total_steps?: number;
   step_data?: CampaignStepData;
   settings?: CampaignSettings;
+  scenes_data?: Array<{
+    index: number;
+    script?: string;
+    image_url?: string;
+    video_url?: string;
+    audio_url?: string;
+  }>;
   metadata?: Json;
   estimated_credits?: number;
   credits_used?: number;
@@ -746,4 +753,144 @@ export interface VoicePreview {
   audio_url: string;
   voice_id: string;
   text: string;
+}
+
+// ============================================================================
+// ASSET LIBRARY ENDPOINTS
+// ============================================================================
+
+export interface AssetFolder {
+  id: string;
+  user_id: string;
+  business_id?: string;
+  name: string;
+  description?: string;
+  color: string;
+  parent_folder_id?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AssetFile {
+  id: string;
+  user_id: string;
+  business_id?: string;
+  folder_id?: string;
+  name: string;
+  original_name: string;
+  file_type: string;
+  file_size: number;
+  width?: number;
+  height?: number;
+  storage_url: string;
+  storage_path: string;
+  thumbnail_url?: string;
+  is_generated: boolean;
+  generation_prompt?: string;
+  generation_model?: string;
+  generation_settings?: Record<string, any>;
+  alt_text?: string;
+  tags: string[];
+  metadata: Record<string, any>;
+  download_count: number;
+  last_accessed_at?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AssetFileShare {
+  id: string;
+  file_id: string;
+  shared_by_user_id: string;
+  shared_with_user_id?: string;
+  shared_with_business_id?: string;
+  permission: 'view' | 'download' | 'edit';
+  expires_at?: string;
+  created_at: string;
+}
+
+export interface CreateAssetFolderRequest {
+  name: string;
+  description?: string;
+  color?: string;
+  parent_folder_id?: string;
+  business_id?: string;
+}
+
+export interface UpdateAssetFolderRequest {
+  name?: string;
+  description?: string;
+  color?: string;
+  parent_folder_id?: string;
+}
+
+export interface CreateAssetFileRequest {
+  folder_id?: string;
+  business_id?: string;
+  name: string;
+  original_name: string;
+  file_type: string;
+  file_size: number;
+  width?: number;
+  height?: number;
+  storage_url: string;
+  storage_path: string;
+  thumbnail_url?: string;
+  is_generated?: boolean;
+  generation_prompt?: string;
+  generation_model?: string;
+  generation_settings?: Record<string, any>;
+  alt_text?: string;
+  tags?: string[];
+  metadata?: Record<string, any>;
+}
+
+export interface UpdateAssetFileRequest {
+  folder_id?: string;
+  name?: string;
+  alt_text?: string;
+  tags?: string[];
+  metadata?: Record<string, any>;
+}
+
+export interface GetAssetFilesOptions {
+  folder_id?: string | null;
+  business_id?: string;
+  file_type?: string;
+  is_generated?: boolean;
+  tags?: string[];
+  search?: string;
+  page?: number;
+  limit?: number;
+  sort_by?: 'created_at' | 'name' | 'file_size' | 'download_count';
+  sort_order?: 'asc' | 'desc';
+}
+
+export interface AssetFilesResponse {
+  files: AssetFile[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+}
+
+export interface GenerateAssetImageRequest {
+  folder_id?: string;
+  business_id?: string;
+  prompt: string;
+  name: string;
+  alt_text?: string;
+  tags?: string[];
+  size?: '1024x1024' | '1792x1024' | '1024x1792';
+  quality?: 'standard' | 'hd';
+  style?: 'vivid' | 'natural';
+}
+
+export interface GenerateAssetImageResponse {
+  success: boolean;
+  data?: {
+    url: string;
+    revisedPrompt?: string;
+  };
+  message?: string;
 }

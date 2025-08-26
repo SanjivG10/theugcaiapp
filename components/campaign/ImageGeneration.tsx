@@ -28,6 +28,7 @@ import { CreditPurchaseModal } from "@/components/ui/credit-purchase-modal";
 import Image from "next/image";
 import toast from "react-hot-toast";
 import { api } from "@/lib/api";
+import { CREDIT_COSTS } from "@/constants/credits";
 
 interface ImageGenerationProps {
   onNext: () => void;
@@ -155,23 +156,6 @@ export function ImageGeneration({ onNext, onPrev }: ImageGenerationProps) {
       // Reset input
       event.target.value = "";
     }
-  };
-
-  // Remove product image
-  const removeProductImage = (imageId: string) => {
-    dispatch({ type: "REMOVE_PRODUCT_IMAGE", payload: imageId });
-
-    // Also remove from any scene selections
-    setSceneGenerations((prev) =>
-      prev.map((scene) => ({
-        ...scene,
-        selectedProductImages: scene.selectedProductImages.filter(
-          (id) => id !== imageId
-        ),
-      }))
-    );
-
-    toast.success("Product image removed");
   };
 
   // Handle script editing
@@ -304,11 +288,14 @@ export function ImageGeneration({ onNext, onPrev }: ImageGenerationProps) {
 
     try {
       // Call the image generation API
+      const imageUrls = state.productImages
+        .filter((image) => scene.selectedProductImages.includes(image.id))
+        .map((image) => image.url);
       const response = await api.generateImage({
         campaignId: state.campaignId as string,
         sceneNumber,
         scriptText: scene.scriptText,
-        selectedImageIds: scene.selectedProductImages,
+        imageUrls,
         imageDescription: scene.imagePrompt,
       });
 
@@ -324,16 +311,8 @@ export function ImageGeneration({ onNext, onPrev }: ImageGenerationProps) {
 
         dispatch({ type: "ADD_GENERATED_IMAGE", payload: generatedImage });
 
-        // Consume credits for image generation
-        try {
-          await api.consumeCredits({
-            action: "IMAGE_GENERATION",
-            campaign_id: state.campaignId,
-          });
-          setCurrentCredits((prev) => prev - 2); // Update local state (2 credits for image generation)
-        } catch (error) {
-          console.error("Failed to consume credits:", error);
-        }
+        // Credits are consumed by the API endpoint
+        setCurrentCredits((prev) => prev - CREDIT_COSTS.IMAGE_GENERATION); // Update local state (2 credits for image generation)
 
         toast.success(`Scene ${sceneNumber} image generated successfully!`);
       } else {
@@ -358,27 +337,7 @@ export function ImageGeneration({ onNext, onPrev }: ImageGenerationProps) {
   const regenerateImage = async (imageId: string) => {
     const image = state.generatedImages.find((img) => img.id === imageId);
     if (!image) return;
-
-    updateSceneGeneration(image.sceneNumber, { isGenerating: true });
-
-    try {
-      await new Promise((resolve) => setTimeout(resolve, 3000));
-
-      // Update with new generated image
-      const newUrl = `/api/placeholder/400/400?scene=${
-        image.sceneNumber
-      }&t=${Date.now()}`;
-      dispatch({
-        type: "UPDATE_GENERATED_IMAGE",
-        payload: { id: imageId, updates: { url: newUrl, approved: false } },
-      });
-
-      toast.success("Image regenerated!");
-    } catch (error) {
-      toast.error("Failed to regenerate image");
-    } finally {
-      updateSceneGeneration(image.sceneNumber, { isGenerating: false });
-    }
+    await generateImage(image.sceneNumber);
   };
 
   const approvedImages = state.generatedImages.filter((img) => img.approved);
@@ -388,7 +347,6 @@ export function ImageGeneration({ onNext, onPrev }: ImageGenerationProps) {
     if (!canProceed) {
       toast.error(
         `Please generate and approve at least ${Math.min(
-          3,
           totalScenes
         )} images to continue`
       );
@@ -417,88 +375,6 @@ export function ImageGeneration({ onNext, onPrev }: ImageGenerationProps) {
 
   return (
     <div className="space-y-8">
-      <div>
-        <h2 className="text-xl font-semibold text-foreground mb-2">
-          Generate Scene Images
-        </h2>
-        <p className="text-muted-foreground text-sm">
-          Generate images for each scene of your video. Upload product images,
-          edit scripts, and generate scene-specific images.
-        </p>
-      </div>
-
-      {/* Product Image Management */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center justify-between">
-            <span>Product Images</span>
-            <div className="flex items-center space-x-2">
-              <Input
-                type="file"
-                accept="image/*"
-                onChange={handleProductImageUpload}
-                disabled={isUploadingImage}
-                className="hidden"
-                id="product-image-upload"
-              />
-              <Button
-                size="sm"
-                onClick={() =>
-                  document.getElementById("product-image-upload")?.click()
-                }
-                disabled={isUploadingImage}
-              >
-                {isUploadingImage ? (
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                ) : (
-                  <Upload className="w-4 h-4 mr-2" />
-                )}
-                {isUploadingImage ? "Uploading..." : "Upload Image"}
-              </Button>
-            </div>
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          {state.productImages.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
-              <ImageIcon className="w-12 h-12 mx-auto mb-4 opacity-50" />
-              <p>No product images uploaded yet.</p>
-              <p className="text-sm">
-                Upload images to use in your video scenes.
-              </p>
-            </div>
-          ) : (
-            <div className="grid grid-cols-4 gap-4">
-              {state.productImages.map((image) => (
-                <div key={image.id} className="relative group">
-                  <div className="aspect-square rounded-lg overflow-hidden bg-muted border">
-                    <img
-                      src={image.url}
-                      alt={image.name}
-                      className="object-cover"
-                    />
-                  </div>
-                  <Button
-                    size="sm"
-                    variant="destructive"
-                    className="absolute -top-2 -right-2 w-6 h-6 p-0 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
-                    onClick={() => removeProductImage(image.id)}
-                  >
-                    <X className="w-3 h-3" />
-                  </Button>
-                  <p
-                    className="text-xs text-center mt-2 truncate"
-                    title={image.name}
-                  >
-                    {image.name}
-                  </p>
-                </div>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
       {/* Scene Generation Cards */}
       <div className="grid gap-6">
         {sceneGenerations.map((scene) => {
@@ -603,7 +479,10 @@ export function ImageGeneration({ onNext, onPrev }: ImageGenerationProps) {
                                 Product Image Required
                               </p>
                               <p className="text-blue-700">
-                                You must select at least one product image for this scene. The AI will use your selected image(s) as a base to create the generated scene image with your description.
+                                You must select at least one product image for
+                                this scene. The AI will use your selected
+                                image(s) as a base to create the generated scene
+                                image with your description.
                               </p>
                             </div>
                           </div>
