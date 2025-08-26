@@ -428,9 +428,9 @@ export function AssetLibraryModal({
   return (
     <>
       <Dialog open={isOpen} onOpenChange={onClose}>
-        <DialogContent className="max-w-6xl h-[90vh] flex flex-col bg-white dark:bg-gray-900 border-0 shadow-2xl p-0 gap-0 overflow-hidden">
-          <DialogHeader className="bg-gradient-to-r from-blue-600 to-purple-600 text-white p-6 border-0">
-            <DialogTitle className="text-2xl font-bold">{title}</DialogTitle>
+        <DialogContent className="max-w-6xl h-[85vh] flex flex-col gap-0 p-0 bg-white dark:bg-gray-900">
+          <DialogHeader className="bg-gradient-to-r from-blue-600 to-purple-600 text-white p-6 border-0 rounded-t-lg">
+            <DialogTitle className="text-2xl font-bold text-white">{title}</DialogTitle>
             <DialogDescription className="text-blue-100 text-base mt-2">{description}</DialogDescription>
           </DialogHeader>
 
@@ -836,7 +836,7 @@ export function AssetLibraryModal({
           </Tabs>
 
           {/* Footer */}
-          <div className="flex items-center justify-between bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-900 p-6 border-t border-gray-200 dark:border-gray-700">
+          <div className="flex items-center justify-between bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-900 p-6 border-t border-gray-200 dark:border-gray-700 rounded-b-lg">
             <div className="text-sm font-medium text-gray-700 dark:text-gray-300">
               {selectedAssets.length > 0 && (
                 <div className="flex items-center space-x-3 bg-blue-50 dark:bg-blue-900/30 px-4 py-2 rounded-full">
