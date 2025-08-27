@@ -68,7 +68,8 @@ export default function CampaignEditPage() {
       setSaving(true);
       const targetStep = stepNumber ?? currentStep;
 
-      const response = await api.updateCampaign(campaign.id, {
+      const response = await api.updateCampaignProgress(campaign.id, {
+        campaignId: campaign.id,
         current_step: targetStep,
       });
 

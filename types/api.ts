@@ -431,7 +431,7 @@ export interface Campaign {
   };
   scene_data?: Array<{
     scene_number: number;
-    scene_script?: string;
+    scene_script: string;
     audio?: {
       previewUrl?: string;
       id?: string;
@@ -459,6 +459,11 @@ export interface CreateCampaignRequest {
   name: string;
   description?: string;
   scene_number?: number;
+}
+
+export interface UpdateCampaignProgress {
+  campaignId: string;
+  current_step: number;
 }
 
 export interface UpdateCampaignRequest {

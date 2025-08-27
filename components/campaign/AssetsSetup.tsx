@@ -7,15 +7,15 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AssetLibraryModal } from "@/components/ui/asset-library-modal";
 import { useCampaign } from "@/contexts/CampaignContext";
-import { 
-  Check, 
-  Image as ImageIcon, 
-  FolderOpen, 
+import {
+  Check,
+  Image as ImageIcon,
+  FolderOpen,
   Edit3,
   GripVertical,
   Play,
   RefreshCw,
-  Clock
+  Clock,
 } from "lucide-react";
 import { AssetFile } from "@/types/api";
 import toast from "react-hot-toast";
@@ -26,19 +26,13 @@ import {
   Droppable,
   DropResult,
 } from "react-beautiful-dnd";
+import { SceneData } from "./ScriptGeneration";
 
 interface AssetsSetupProps {
   onNext: () => void;
   onPrev: () => void;
   canGoNext: boolean;
   canGoPrev: boolean;
-}
-
-interface SceneAssetData {
-  sceneNumber: number;
-  scriptText: string;
-  selectedImageId?: string;
-  selectedImage?: AssetFile;
 }
 
 export function AssetsSetup({ onNext, onPrev }: AssetsSetupProps) {
@@ -51,19 +45,55 @@ export function AssetsSetup({ onNext, onPrev }: AssetsSetupProps) {
   const [selectedImageIds, setSelectedImageIds] = useState<string[]>([]);
   const [orderedImages, setOrderedImages] = useState<string[]>([]);
 
-  // Initialize scene data from campaign context
-  const [sceneData, setSceneData] = useState<SceneAssetData[]>(() => {
-    return Array.from({ length: totalScenes }, (_, index) => {
-      const sceneNumber = index + 1;
-      const sceneDataFromContext = state.sceneData.find(s => s.scene_number === sceneNumber);
-      return {
-        sceneNumber,
-        scriptText: sceneDataFromContext?.scene_script || "",
-        selectedImageId: undefined,
-        selectedImage: undefined,
-      };
-    });
+  const [sceneData, setSceneData] = useState<SceneData[]>(() => {
+    return state.sceneData.map((scene) => ({
+      scene_number: scene.scene_number,
+      scene_script: scene.scene_script,
+      image: {
+        name: scene.image?.name ?? "",
+        url: scene.image?.url ?? "",
+        isProcessing: scene.image?.isProcessing ?? false,
+      },
+      audio: {
+        previewUrl: scene.audio?.previewUrl ?? "",
+        id: scene.audio?.id ?? "",
+        metadata: scene.audio?.metadata ?? {},
+      },
+      video: {
+        prompt: scene.video?.prompt ?? "",
+        url: scene.video?.url ?? "",
+        isProcessing: scene.video?.isProcessing ?? false,
+      },
+    }));
   });
+
+  // Helper function to validate if an image is actually valid (has a non-empty URL)
+  const isValidImage = (
+    image: { url?: string; name?: string } | null | undefined
+  ): boolean => {
+    return Boolean(
+      image &&
+        image.url &&
+        typeof image.url === "string" &&
+        image.url.trim() !== "" &&
+        image.url !== "undefined" &&
+        image.url !== "null"
+    );
+  };
+
+  // Helper function to validate if an AssetFile is actually valid
+  const isValidAssetFile = (asset: AssetFile | undefined): boolean => {
+    return Boolean(
+      asset &&
+        asset.storage_url &&
+        typeof asset.storage_url === "string" &&
+        asset.storage_url.trim() !== "" &&
+        asset.storage_url !== "undefined" &&
+        asset.storage_url !== "null"
+    );
+  };
+
+  // Initialize scene data from campaign context
 
   // Load existing scene images from backend
   React.useEffect(() => {
@@ -73,50 +103,14 @@ export function AssetsSetup({ onNext, onPrev }: AssetsSetupProps) {
       try {
         const response = await api.getCampaign(state.campaignId);
         if (response.success && response.data?.scene_data) {
+          console.log("response.data.scene_data", response.data.scene_data);
           const savedSceneData = response.data.scene_data;
 
-          // Update scene data with saved images
-          setSceneData((prev) =>
-            prev.map((scene) => {
-              const savedScene = savedSceneData.find(
-                (s) => s.scene_number === scene.sceneNumber
-              );
-              if (savedScene && savedScene.image) {
-                // Convert scene image data to AssetFile format for compatibility
-                const assetFile: AssetFile = {
-                  id: `scene-${scene.sceneNumber}-image`,
-                  user_id: "",
-                  business_id: "",
-                  folder_id: undefined,
-                  name: savedScene.image.name || `Scene ${scene.sceneNumber} Image`,
-                  original_name: `scene_${scene.sceneNumber}_image`,
-                  file_type: "image",
-                  file_size: 0,
-                  storage_url: savedScene.image.url || "",
-                  storage_path: "",
-                  thumbnail_url: savedScene.image.url || "",
-                  is_generated: false,
-                  alt_text: `Scene ${scene.sceneNumber} image`,
-                  tags: [],
-                  metadata: {},
-                  created_at: new Date().toISOString(),
-                  updated_at: new Date().toISOString(),
-                  download_count: 0,
-                };
-                return {
-                  ...scene,
-                  selectedImageId: assetFile.id,
-                  selectedImage: assetFile,
-                };
-              }
-              return scene;
-            })
-          );
+          setSceneData(savedSceneData as SceneData[]);
 
-          // Update selected images for sequence view
           const imagesWithAssets = savedSceneData
-            .filter(s => s.image?.url)
-            .map(s => `scene-${s.scene_number}-image`);
+            .filter((s) => s.image && isValidImage(s.image))
+            .map((s) => `scene-${s.scene_number}-image`);
           setSelectedImageIds(imagesWithAssets);
           setOrderedImages(imagesWithAssets);
         }
@@ -142,11 +136,14 @@ export function AssetsSetup({ onNext, onPrev }: AssetsSetupProps) {
     // Update scene data
     setSceneData((prev) =>
       prev.map((scene) =>
-        scene.sceneNumber === currentScene
+        scene.scene_number === currentScene
           ? {
               ...scene,
-              selectedImageId: selectedAsset.id,
-              selectedImage: selectedAsset,
+              image: {
+                name: selectedAsset.name,
+                url: selectedAsset.storage_url,
+                isProcessing: false,
+              },
             }
           : scene
       )
@@ -154,39 +151,30 @@ export function AssetsSetup({ onNext, onPrev }: AssetsSetupProps) {
 
     // Update selected images for sequence view
     const newImageId = selectedAsset.id;
-    const oldImageId = sceneData.find(s => s.sceneNumber === currentScene)?.selectedImageId;
-    
+    const oldImageId = sceneData.find((s) => s.scene_number === currentScene)
+      ?.image?.url;
+
     if (oldImageId && selectedImageIds.includes(oldImageId)) {
       // Replace existing image
-      setSelectedImageIds(prev => prev.map(id => id === oldImageId ? newImageId : id));
-      setOrderedImages(prev => prev.map(id => id === oldImageId ? newImageId : id));
+      setSelectedImageIds((prev) =>
+        prev.map((id) => (id === oldImageId ? newImageId : id))
+      );
+      setOrderedImages((prev) =>
+        prev.map((id) => (id === oldImageId ? newImageId : id))
+      );
     } else {
       // Add new image
-      setSelectedImageIds(prev => [...prev, newImageId]);
-      setOrderedImages(prev => [...prev, newImageId]);
+      setSelectedImageIds((prev) => [...prev, newImageId]);
+      setOrderedImages((prev) => [...prev, newImageId]);
     }
 
     toast.success(`Image selected for Scene ${currentScene}`);
   };
 
-  // Handle drag and drop for sequence reordering
-  const handleDragEnd = (result: DropResult) => {
-    if (!result.destination) return;
-
-    const newOrderedImages = Array.from(orderedImages);
-    const [reorderedImage] = newOrderedImages.splice(result.source.index, 1);
-    newOrderedImages.splice(result.destination.index, 0, reorderedImage);
-
-    setOrderedImages(newOrderedImages);
-  };
-
-  // Check if all scenes have images selected
-  const scenesWithImages = sceneData.filter((scene) => scene.selectedImage);
+  const scenesWithImages = sceneData.filter(
+    (scene) => scene.image && isValidImage(scene.image)
+  );
   const canProceed = scenesWithImages.length >= totalScenes;
-
-  const estimateDuration = () => {
-    return selectedImageIds.length * 3; // 3 seconds per image
-  };
 
   const handleNext = async () => {
     if (!canProceed) {
@@ -204,17 +192,28 @@ export function AssetsSetup({ onNext, onPrev }: AssetsSetupProps) {
     try {
       // Update scene data in context with image information
       sceneData.forEach((scene) => {
-        if (scene.selectedImage) {
+        if (scene.image && isValidImage(scene.image)) {
           dispatch({
             type: "UPDATE_SCENE_DATA",
             payload: {
-              sceneNumber: scene.sceneNumber,
+              sceneNumber: scene.scene_number,
               data: {
                 image: {
-                  name: scene.selectedImage.name,
-                  url: scene.selectedImage.storage_url,
+                  name: scene.image.name,
+                  url: scene.image.url,
                   isProcessing: false,
-                }
+                },
+                audio: {
+                  previewUrl: scene.audio.previewUrl ?? "",
+                  id: scene.audio.id ?? "",
+                  metadata: scene.audio.metadata ?? {},
+                },
+                video: {
+                  prompt: scene.video.prompt ?? "",
+                  url: scene.video.url ?? "",
+                  isProcessing: scene.video.isProcessing ?? false,
+                },
+                scene_script: scene.scene_script,
               },
             },
           });
@@ -224,13 +223,16 @@ export function AssetsSetup({ onNext, onPrev }: AssetsSetupProps) {
       // Save to database
       const updateData = {
         scene_data: sceneData.map((scene) => ({
-          scene_number: scene.sceneNumber,
-          scene_script: scene.scriptText,
-          image: scene.selectedImage ? {
-            name: scene.selectedImage.name,
-            url: scene.selectedImage.storage_url,
-            isProcessing: false,
-          } : undefined,
+          scene_number: scene.scene_number,
+          scene_script: scene.scene_script,
+          image:
+            scene.image && isValidImage(scene.image)
+              ? {
+                  name: scene.image.name,
+                  url: scene.image.url,
+                  isProcessing: false,
+                }
+              : undefined,
         })),
       };
 
@@ -254,14 +256,18 @@ export function AssetsSetup({ onNext, onPrev }: AssetsSetupProps) {
           Assets Setup
         </h2>
         <p className="text-muted-foreground text-sm">
-          Select and arrange images for your {totalScenes} scenes. You can browse existing assets, upload new ones, or generate AI images.
+          Select and arrange images for your {totalScenes} scenes. You can
+          browse existing assets, upload new ones, or generate AI images.
         </p>
       </div>
 
       <Tabs defaultValue="selection" className="w-full">
         <TabsList className="grid w-full grid-cols-2">
           <TabsTrigger value="selection">Image Selection</TabsTrigger>
-          <TabsTrigger value="sequence" disabled={scenesWithImages.length === 0}>
+          <TabsTrigger
+            value="sequence"
+            disabled={scenesWithImages.length === 0}
+          >
             Sequence & Preview
           </TabsTrigger>
         </TabsList>
@@ -271,19 +277,25 @@ export function AssetsSetup({ onNext, onPrev }: AssetsSetupProps) {
           <div className="grid gap-6">
             {sceneData.map((scene, index) => (
               <Card
-                key={`${scene.sceneNumber}-${index}`}
+                key={`${scene.scene_number}-${index}`}
                 className="overflow-hidden"
               >
                 <CardHeader>
                   <div className="flex items-center justify-between">
                     <CardTitle className="flex items-center space-x-2">
-                      <Badge variant="outline">Scene {scene.sceneNumber}</Badge>
-                      <span className="text-base">Scene {scene.sceneNumber}</span>
+                      <Badge variant="outline">
+                        Scene {scene.scene_number}
+                      </Badge>
+                      <span className="text-base">
+                        Scene {scene.scene_number}
+                      </span>
                     </CardTitle>
-                    {scene.selectedImage && (
+                    {scene.image && isValidImage(scene.image) && (
                       <div className="flex items-center space-x-1 text-green-600">
                         <Check className="w-4 h-4" />
-                        <span className="text-sm font-medium">Image Selected</span>
+                        <span className="text-sm font-medium">
+                          Image Selected
+                        </span>
                       </div>
                     )}
                   </div>
@@ -293,11 +305,19 @@ export function AssetsSetup({ onNext, onPrev }: AssetsSetupProps) {
                     {/* Left: Script */}
                     <div className="space-y-4">
                       <div>
-                        <label className="text-sm font-medium mb-2 block">
-                          Script for this scene:
+                        <label className="text-sm font-medium mb-2 block text-muted-foreground">
+                          Script for Scene {scene.scene_number}
                         </label>
-                        <div className="p-3 bg-muted rounded-lg text-sm min-h-[80px] flex items-center">
-                          {scene.scriptText || "No script content for this scene"}
+                        <div className="p-4 bg-card border rounded-lg text-sm  whitespace-pre-wrap leading-relaxed relative">
+                          {scene.scene_script ? (
+                            <div className="flex gap-1">
+                              <p className="flex-1">{scene.scene_script}</p>
+                            </div>
+                          ) : (
+                            <div className="text-muted-foreground italic flex items-center justify-center h-full">
+                              No script content available for this scene
+                            </div>
+                          )}
                         </div>
                       </div>
 
@@ -307,7 +327,7 @@ export function AssetsSetup({ onNext, onPrev }: AssetsSetupProps) {
                           Scene Image: <span className="text-red-500">*</span>
                         </label>
 
-                        {!scene.selectedImage && (
+                        {!isValidImage(scene.image) && (
                           <div className="mb-3 p-3 bg-amber-50 border border-amber-200 rounded-lg">
                             <div className="flex items-center space-x-2">
                               <svg
@@ -329,23 +349,29 @@ export function AssetsSetup({ onNext, onPrev }: AssetsSetupProps) {
                         )}
 
                         <Button
-                          variant={scene.selectedImage ? "secondary" : "outline"}
+                          variant={
+                            scene.image && isValidImage(scene.image)
+                              ? "secondary"
+                              : "outline"
+                          }
                           className={`w-full h-20 border-2 border-dashed transition-all ${
-                            scene.selectedImage
+                            scene.image && isValidImage(scene.image)
                               ? "border-green-300 bg-green-50 hover:bg-green-100"
                               : "border-muted-foreground/25 hover:border-primary/50"
                           }`}
-                          onClick={() => handleSceneImageSelect(scene.sceneNumber)}
+                          onClick={() =>
+                            handleSceneImageSelect(scene.scene_number)
+                          }
                         >
                           <div className="text-center">
-                            {scene.selectedImage ? (
+                            {scene.image && isValidImage(scene.image) ? (
                               <>
                                 <Check className="w-6 h-6 mx-auto mb-1 text-green-600" />
                                 <p className="text-sm font-medium text-green-800">
                                   Change Selected Image
                                 </p>
                                 <p className="text-xs text-green-600">
-                                  {scene.selectedImage.name}
+                                  {scene.image.name}
                                 </p>
                               </>
                             ) : (
@@ -370,17 +396,11 @@ export function AssetsSetup({ onNext, onPrev }: AssetsSetupProps) {
                         Selected Image:
                       </label>
                       <div className="aspect-square rounded-lg overflow-hidden bg-muted border-2 border-dashed border-muted-foreground/25">
-                        {scene.selectedImage ? (
+                        {scene.image && isValidImage(scene.image) ? (
                           <div className="relative h-full">
                             <img
-                              src={
-                                scene.selectedImage.thumbnail_url ||
-                                scene.selectedImage.storage_url
-                              }
-                              alt={
-                                scene.selectedImage.alt_text ||
-                                scene.selectedImage.name
-                              }
+                              src={scene.image.url}
+                              alt={scene.image.name || scene.image.name}
                               className="w-full h-full object-cover"
                             />
                             <div className="absolute top-2 right-2">
@@ -402,20 +422,6 @@ export function AssetsSetup({ onNext, onPrev }: AssetsSetupProps) {
                           </div>
                         )}
                       </div>
-
-                      {scene.selectedImage && (
-                        <div className="mt-3 space-y-2">
-                          <div className="text-xs text-muted-foreground">
-                            <strong>Name:</strong> {scene.selectedImage.name}
-                          </div>
-                          {scene.selectedImage.alt_text && (
-                            <div className="text-xs text-muted-foreground">
-                              <strong>Description:</strong>{" "}
-                              {scene.selectedImage.alt_text}
-                            </div>
-                          )}
-                        </div>
-                      )}
                     </div>
                   </div>
                 </CardContent>
@@ -438,167 +444,35 @@ export function AssetsSetup({ onNext, onPrev }: AssetsSetupProps) {
                 <CardContent>
                   <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                     {scenesWithImages.map((scene, index) => (
-                      <div key={`${scene.selectedImageId}-${index}`} className="space-y-3">
+                      <div
+                        key={`${scene.image.url}-${index}`}
+                        className="space-y-3"
+                      >
                         <div className="relative">
                           <div className="relative aspect-square rounded-lg overflow-hidden border-2 border-primary">
                             <img
-                              src={scene.selectedImage!.storage_url}
-                              alt={`Scene ${scene.sceneNumber}`}
+                              src={scene.image.url}
+                              alt={`Scene ${scene.scene_number}`}
                               className="object-cover w-full h-full"
                             />
 
                             {/* Scene indicator */}
                             <div className="absolute top-2 left-2">
                               <Badge variant="secondary">
-                                Scene {scene.sceneNumber}
+                                Scene {scene.scene_number}
                               </Badge>
-                            </div>
-
-                            {/* Order number */}
-                            <div className="absolute bottom-2 right-2">
-                              <div className="w-6 h-6 bg-primary text-primary-foreground rounded-full flex items-center justify-center text-xs font-bold">
-                                {orderedImages.indexOf(scene.selectedImageId!) + 1}
-                              </div>
                             </div>
                           </div>
 
                           {/* Script preview */}
                           <div className="mt-2 p-2 bg-muted/50 rounded text-xs">
                             <p className="line-clamp-2 text-muted-foreground">
-                              {scene.scriptText || "No script content"}
+                              {scene.scene_script || "No script content"}
                             </p>
                           </div>
                         </div>
                       </div>
                     ))}
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-
-            {/* Sequence & Preview - Right Panel */}
-            <div className="space-y-6">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Video Sequence</CardTitle>
-                  <p className="text-sm text-muted-foreground">
-                    Drag to reorder images
-                  </p>
-                </CardHeader>
-                <CardContent>
-                  {selectedImageIds.length === 0 ? (
-                    <div className="text-center py-8">
-                      <Play className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
-                      <p className="text-sm text-muted-foreground">
-                        Select images to preview sequence
-                      </p>
-                    </div>
-                  ) : (
-                    <DragDropContext onDragEnd={handleDragEnd}>
-                      <Droppable droppableId="sequence">
-                        {(provided) => (
-                          <div
-                            {...provided.droppableProps}
-                            ref={provided.innerRef}
-                            className="space-y-3"
-                          >
-                            {orderedImages.map((imageId, index) => {
-                              const scene = scenesWithImages.find(
-                                (s) => s.selectedImageId === imageId
-                              );
-                              if (!scene) return null;
-
-                              return (
-                                <Draggable
-                                  key={imageId}
-                                  draggableId={imageId}
-                                  index={index}
-                                >
-                                  {(provided, snapshot) => (
-                                    <div
-                                      ref={provided.innerRef}
-                                      {...provided.draggableProps}
-                                      className={`flex items-center space-x-3 p-2 rounded-lg border ${
-                                        snapshot.isDragging
-                                          ? "border-primary bg-primary/5"
-                                          : "border-muted"
-                                      }`}
-                                    >
-                                      <div {...provided.dragHandleProps}>
-                                        <GripVertical className="w-4 h-4 text-muted-foreground" />
-                                      </div>
-
-                                      <div className="w-12 h-12 rounded overflow-hidden flex-shrink-0">
-                                        <img
-                                          src={scene.selectedImage!.storage_url}
-                                          alt={`Scene ${scene.sceneNumber}`}
-                                          className="w-full h-full object-cover"
-                                        />
-                                      </div>
-
-                                      <div className="flex-1 min-w-0">
-                                        <p className="text-sm font-medium">
-                                          Scene {scene.sceneNumber}
-                                        </p>
-                                        <p className="text-xs text-muted-foreground">
-                                          Position {index + 1}
-                                        </p>
-                                      </div>
-                                    </div>
-                                  )}
-                                </Draggable>
-                              );
-                            })}
-                            {provided.placeholder}
-                          </div>
-                        )}
-                      </Droppable>
-                    </DragDropContext>
-                  )}
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
-                  <CardTitle>Video Preview</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4 text-center">
-                    <div>
-                      <div className="text-2xl font-bold text-primary">
-                        {selectedImageIds.length}
-                      </div>
-                      <p className="text-sm text-muted-foreground">Scenes</p>
-                    </div>
-                    <div>
-                      <div className="text-2xl font-bold text-primary">
-                        {estimateDuration()}s
-                      </div>
-                      <p className="text-sm text-muted-foreground">Duration</p>
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <div className="flex items-center space-x-2 text-sm">
-                      <Clock className="w-4 h-4 text-muted-foreground" />
-                      <span className="text-muted-foreground">
-                        Estimated duration
-                      </span>
-                    </div>
-                    <div className="w-full bg-muted rounded-full h-2">
-                      <div
-                        className="bg-primary h-2 rounded-full"
-                        style={{
-                          width: `${Math.min(
-                            (estimateDuration() / 60) * 100,
-                            100
-                          )}%`,
-                        }}
-                      />
-                    </div>
-                    <p className="text-xs text-muted-foreground text-center">
-                      {estimateDuration()}s of recommended 30-60s
-                    </p>
                   </div>
                 </CardContent>
               </Card>

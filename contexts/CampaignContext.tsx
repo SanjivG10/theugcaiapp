@@ -51,7 +51,7 @@ export interface CampaignState {
   };
   sceneData: Array<{
     scene_number: number;
-    scene_script?: string;
+    scene_script: string;
     audio?: {
       previewUrl?: string;
       id?: string;
@@ -186,6 +186,7 @@ function campaignReducer(
         ...state,
         sceneData: Array.from({ length: action.payload }, (_, index) => ({
           scene_number: index + 1,
+          scene_script: "",
         })),
       };
 

@@ -53,6 +53,7 @@ import {
   AssetFilesResponse,
   GenerateAssetImageRequest,
   GenerateAssetImageResponse,
+  UpdateCampaignProgress,
 } from "@/types/api";
 
 class ApiClient {
@@ -356,6 +357,17 @@ class ApiClient {
     data: UpdateCampaignRequest
   ): Promise<ApiResponse<Campaign>> {
     const response = await this.client.put(`/api/campaigns/${id}`, data);
+    return response.data;
+  }
+
+  async updateCampaignProgress(
+    id: string,
+    data: UpdateCampaignProgress
+  ): Promise<ApiResponse<Campaign>> {
+    const response = await this.client.patch(
+      `/api/campaigns/${id}/progress`,
+      data
+    );
     return response.data;
   }
 

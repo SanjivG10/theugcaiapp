@@ -12,8 +12,9 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { useCampaign } from "@/contexts/CampaignContext";
+import { CampaignState, useCampaign } from "@/contexts/CampaignContext";
 import { api } from "@/lib/api";
+import { Json } from "@/types";
 import {
   Clock,
   FileText,
@@ -36,15 +37,29 @@ interface ScriptGenerationProps {
   canGoPrev: boolean;
 }
 
-interface SceneScript {
-  id: string;
-  sceneNumber: number;
-  content: string;
-}
+export type SceneData = {
+  scene_number: number;
+  scene_script: string;
+  audio: {
+    previewUrl: string;
+    id: string;
+    metadata: Json;
+  };
+  image: {
+    name: string;
+    url: string;
+    isProcessing: boolean;
+  };
+  video: {
+    prompt: string;
+    url: string;
+    isProcessing: boolean;
+  };
+};
 
 export function ScriptGeneration({ onNext, onPrev }: ScriptGenerationProps) {
   const { state, dispatch } = useCampaign();
-  const [sceneScripts, setSceneScripts] = useState<SceneScript[]>([]);
+  const [sceneData, setSceneData] = useState<SceneData[]>([]);
   const [adPrompt, setAdPrompt] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
   const [globalSettings, setGlobalSettings] = useState({
@@ -57,25 +72,52 @@ export function ScriptGeneration({ onNext, onPrev }: ScriptGenerationProps) {
     if (state.sceneNumber > 0) {
       // Load from saved scene data if available
       if (state.sceneData && state.sceneData.length > 0) {
-        const savedScripts = state.sceneData
-          .slice(0, state.sceneNumber)
-          .map((scene) => ({
-            id: `scene-${scene.scene_number}`,
-            sceneNumber: scene.scene_number,
-            content: scene.scene_script || "",
-          }));
-        setSceneScripts(savedScripts);
+        const savedScripts = state.sceneData.map((scene) => ({
+          scene_number: scene.scene_number,
+          scene_script: scene.scene_script || "",
+          audio: {
+            previewUrl: scene.audio?.previewUrl ?? "",
+            id: scene.audio?.id ?? "",
+            metadata: scene.audio?.metadata ?? {},
+          },
+          image: {
+            name: scene.image?.name ?? "",
+            url: scene.image?.url ?? "",
+            isProcessing: scene.image?.isProcessing ?? false,
+          },
+          video: {
+            prompt: scene.video?.prompt ?? "",
+            url: scene.video?.url ?? "",
+            isProcessing: scene.video?.isProcessing ?? false,
+          },
+        }));
+
+        setSceneData(savedScripts);
       } else {
         // Initialize empty scripts for each scene
-        const newSceneScripts: SceneScript[] = Array.from(
+        const newSceneScripts: SceneData[] = Array.from(
           { length: state.sceneNumber },
           (_, index) => ({
-            id: `scene-${index + 1}`,
-            sceneNumber: index + 1,
-            content: "",
+            scene_number: index + 1,
+            scene_script: "",
+            audio: {
+              previewUrl: "",
+              id: "",
+              metadata: {},
+            },
+            video: {
+              prompt: "",
+              url: "",
+              isProcessing: false,
+            },
+            image: {
+              name: "",
+              url: "",
+              isProcessing: false,
+            },
           })
         );
-        setSceneScripts(newSceneScripts);
+        setSceneData(newSceneScripts);
       }
     }
   }, [state.sceneNumber, state.sceneData]);
@@ -139,7 +181,7 @@ export function ScriptGeneration({ onNext, onPrev }: ScriptGenerationProps) {
     setIsGenerating(true);
 
     // Clear existing scene scripts
-    setSceneScripts((prev) => prev.map((scene) => ({ ...scene, content: "" })));
+    setSceneData((prev) => prev.map((scene) => ({ ...scene, content: "" })));
 
     try {
       // Call the streaming script generation API for all scenes
@@ -187,7 +229,7 @@ export function ScriptGeneration({ onNext, onPrev }: ScriptGenerationProps) {
       }
 
       // Update scene scripts with parsed content
-      setSceneScripts((prev) =>
+      setSceneData((prev) =>
         prev.map((scene, index) => ({
           ...scene,
           content: finalScripts[index] || "",
@@ -215,9 +257,9 @@ export function ScriptGeneration({ onNext, onPrev }: ScriptGenerationProps) {
   ]);
 
   const updateSceneContent = (sceneIndex: number, content: string) => {
-    setSceneScripts((prev) =>
+    setSceneData((prev) =>
       prev.map((scene) =>
-        scene.sceneNumber === sceneIndex + 1 ? { ...scene, content } : scene
+        scene.scene_number === sceneIndex + 1 ? { ...scene, content } : scene
       )
     );
   };
@@ -227,7 +269,7 @@ export function ScriptGeneration({ onNext, onPrev }: ScriptGenerationProps) {
   };
 
   const clearAllScripts = () => {
-    setSceneScripts((prev) => prev.map((scene) => ({ ...scene, content: "" })));
+    setSceneData((prev) => prev.map((scene) => ({ ...scene, content: "" })));
     setAdPrompt("");
   };
 
@@ -239,13 +281,16 @@ export function ScriptGeneration({ onNext, onPrev }: ScriptGenerationProps) {
   };
 
   const getTotalWords = () => {
-    return sceneScripts.reduce((total, scene) => {
-      return total + scene.content.split(/\s+/).filter((w) => w).length;
+    return sceneData.reduce((total, scene) => {
+      return (
+        total +
+        (scene?.scene_script?.split(/\s+/)?.filter((w) => w).length ?? 0)
+      );
     }, 0);
   };
 
   const getCompletedScenesCount = () => {
-    return sceneScripts.filter((scene) => scene.content.trim()).length;
+    return sceneData.filter((scene) => scene?.scene_script?.trim()).length;
   };
 
   const handleNext = async () => {
@@ -275,27 +320,25 @@ export function ScriptGeneration({ onNext, onPrev }: ScriptGenerationProps) {
       dispatch({ type: "SET_SCRIPT", payload: scriptData });
 
       // Update scene data with scripts
-      sceneScripts.forEach((scene) => {
+      sceneData.forEach((scene) => {
         dispatch({
           type: "UPDATE_SCENE_DATA",
           payload: {
-            sceneNumber: scene.sceneNumber,
-            data: { scene_script: scene.content.trim() },
+            sceneNumber: scene.scene_number,
+            data: { scene_script: scene.scene_script?.trim() },
           },
         });
       });
 
-      // Save to database if we have a campaign ID
       if (state.campaignId) {
         const updateData = {
           script: scriptData,
-          scene_data: sceneScripts.map((scene) => ({
-            scene_number: scene.sceneNumber,
-            scene_script: scene.content.trim(),
-          })),
+          scene_data: sceneData,
         };
 
         const response = await api.updateCampaign(state.campaignId, updateData);
+
+        onNext();
         if (!response.success) {
           throw new Error(response.message || "Failed to save script data");
         }
@@ -305,11 +348,11 @@ export function ScriptGeneration({ onNext, onPrev }: ScriptGenerationProps) {
     } catch (error) {
       console.error("Failed to save scripts:", error);
       toast.error("Failed to save scripts");
+      setIsLoading(false);
       return;
     }
 
     setIsLoading(false);
-    onNext();
   };
 
   return (
@@ -413,7 +456,7 @@ export function ScriptGeneration({ onNext, onPrev }: ScriptGenerationProps) {
           {/* Generate Actions */}
           <div className="flex justify-between items-center">
             <div className="flex space-x-2">
-              {sceneScripts.some((s) => s.content.trim()) && (
+              {sceneData.some((s) => s.scene_script?.trim()) && (
                 <Button
                   variant="outline"
                   size="sm"
@@ -423,7 +466,7 @@ export function ScriptGeneration({ onNext, onPrev }: ScriptGenerationProps) {
                   Clear All
                 </Button>
               )}
-              {sceneScripts.some((s) => s.content.trim()) && (
+              {sceneData.some((s) => s.scene_script?.trim()) && (
                 <Button
                   variant="outline"
                   size="sm"
@@ -454,25 +497,24 @@ export function ScriptGeneration({ onNext, onPrev }: ScriptGenerationProps) {
       </Card>
 
       {/* Scene Scripts Display */}
-      {sceneScripts.some((s) => s.content.trim()) && (
+      {sceneData.some((s) => s?.scene_script?.trim()) && (
         <div className="space-y-6">
           <div className="flex items-center justify-between">
             <h3 className="text-lg font-semibold">Generated Scene Scripts</h3>
             <div className="text-sm text-muted-foreground">
-              {getCompletedScenesCount()}/{state.sceneNumber} scenes
-              completed
+              {getCompletedScenesCount()}/{state.sceneNumber} scenes completed
             </div>
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {sceneScripts.map((scene, index) => (
-              <Card key={scene.id}>
+            {sceneData.map((scene, index) => (
+              <Card key={scene.scene_number}>
                 <CardHeader>
                   <CardTitle className="flex items-center space-x-2">
                     <div className="w-8 h-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-sm font-medium">
-                      {scene.sceneNumber}
+                      {scene.scene_number}
                     </div>
-                    <span>Scene {scene.sceneNumber}</span>
+                    <span>Scene {scene.scene_number}</span>
                   </CardTitle>
                 </CardHeader>
 
@@ -483,7 +525,7 @@ export function ScriptGeneration({ onNext, onPrev }: ScriptGenerationProps) {
                       Script Content
                     </label>
                     <Textarea
-                      value={scene.content}
+                      value={scene.scene_script}
                       onChange={(e) =>
                         updateSceneContent(index, e.target.value)
                       }
@@ -493,18 +535,21 @@ export function ScriptGeneration({ onNext, onPrev }: ScriptGenerationProps) {
                   </div>
 
                   {/* Scene Stats */}
-                  {scene.content && (
+                  {scene.scene_script && (
                     <div className="flex items-center space-x-4 text-xs text-muted-foreground border-t pt-3">
                       <div className="flex items-center space-x-1">
                         <Hash className="w-3 h-3" />
                         <span>
-                          {scene.content.split(/\s+/).filter((w) => w).length}{" "}
+                          {
+                            scene.scene_script.split(/\s+/).filter((w) => w)
+                              .length
+                          }{" "}
                           words
                         </span>
                       </div>
                       <div className="flex items-center space-x-1">
                         <Clock className="w-3 h-3" />
-                        <span>~{estimateDuration(scene.content)}s</span>
+                        <span>~{estimateDuration(scene.scene_script)}s</span>
                       </div>
                     </div>
                   )}
@@ -536,7 +581,7 @@ export function ScriptGeneration({ onNext, onPrev }: ScriptGenerationProps) {
                 <span>
                   ~
                   {estimateDuration(
-                    sceneScripts.map((s) => s.content).join(" ")
+                    sceneData.map((s) => s.scene_script).join(" ")
                   )}
                   s total duration
                 </span>

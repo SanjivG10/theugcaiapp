@@ -29,7 +29,13 @@ const updateCampaignSchema = z.object({
   output_urls: z.array(z.string()).optional(),
   credits_used: z.number().int().min(0).optional(),
   metadata: z.record(z.any(), z.any()).optional(),
-  script: z.string().optional(),
+  script: z
+    .object({
+      tone: z.string().optional(),
+      style: z.string().optional(),
+      prompt: z.string().optional(),
+    })
+    .optional(),
   scene_data: z
     .array(
       z.object({
@@ -59,6 +65,11 @@ const updateCampaignSchema = z.object({
       })
     )
     .optional(),
+});
+
+const updateCampaignProgressSchema = z.object({
+  campaignId: z.string(),
+  current_step: z.number().int().min(1).max(5),
 });
 
 const saveCampaignSettingsSchema = z.object({
@@ -1022,90 +1033,6 @@ export class CampaignController {
         }
 
         res.end();
-
-        let parsedScripts: string[] = [];
-        try {
-          const parsed = JSON.parse(generatedScripts.trim());
-          if (Array.isArray(parsed) && parsed.length === totalScenes) {
-            parsedScripts = parsed;
-          } else {
-            parsedScripts = generatedScripts
-              .split("\n\n")
-              .slice(0, totalScenes);
-          }
-        } catch {
-          parsedScripts = generatedScripts.split("\n\n").slice(0, totalScenes);
-        }
-
-        const currentScenesData: {
-          scene_number: number;
-          scene_script: string;
-          audio: {
-            previewUrl: string;
-          };
-          image: {
-            name: string;
-            url: string;
-            isProcessing: boolean;
-          };
-          video: {
-            prompt: string;
-            url: string;
-            isProcessing: boolean;
-          };
-        }[] = [];
-
-        // Update or create scene entries for all scenes
-        for (let i = 0; i < totalScenes; i++) {
-          const sceneIndex = i + 1;
-          const scriptContent = parsedScripts[i] || "";
-
-          const existingSceneIndex = currentScenesData.findIndex(
-            (scene) => scene.scene_number === sceneIndex
-          );
-
-          if (existingSceneIndex !== -1) {
-            // Update existing scene
-            currentScenesData[existingSceneIndex] = {
-              ...currentScenesData[existingSceneIndex],
-              scene_script: scriptContent.trim(),
-            };
-          } else {
-            // Create new scene entry
-            currentScenesData.push({
-              scene_number: sceneIndex,
-              scene_script: scriptContent.trim(),
-              audio: {
-                previewUrl: "",
-              },
-              image: {
-                name: "",
-                url: "",
-                isProcessing: false,
-              },
-              video: {
-                prompt: "",
-                url: "",
-                isProcessing: false,
-              },
-            });
-          }
-        }
-
-        currentScenesData.sort((a, b) => a.scene_number - b.scene_number);
-
-        await supabaseAdmin
-          .from("campaigns")
-          .update({
-            scene_data: currentScenesData,
-            updated_at: new Date().toISOString(),
-            script: {
-              tone,
-              style,
-              prompt: customPrompt?.trim(),
-            },
-          })
-          .eq("id", campaignId);
       } catch (error) {
         console.error("Error generating script:", error);
         res.write("\n\nError generating script. Please try again.");
@@ -1297,6 +1224,66 @@ export class CampaignController {
       }
     } catch (error) {
       console.error("Error in generateImage:", error);
+      return res.status(500).json({
+        success: false,
+        message: "Internal server error",
+      });
+    }
+  }
+
+  static async updateCampaignProgress(req: Request, res: Response) {
+    try {
+      const userId = req.user?.id;
+      if (!userId) {
+        return res.status(401).json({
+          success: false,
+          message: "Unauthorized",
+        });
+      }
+
+      const validation = updateCampaignProgressSchema.safeParse(req.body);
+      if (!validation.success) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid input",
+          errors: validation.error,
+        });
+      }
+
+      const { campaignId, current_step } = validation.data;
+
+      const { data: campaign, error: fetchError } = await supabaseAdmin
+        .from("campaigns")
+        .select("id, status")
+        .eq("id", campaignId)
+        .eq("user_id", userId)
+        .single();
+
+      if (fetchError || !campaign) {
+        return res.status(404).json({
+          success: false,
+          message: "Campaign not found",
+        });
+      }
+
+      const { error: updateError } = await supabaseAdmin
+        .from("campaigns")
+        .update({ current_step })
+        .eq("id", campaign.id);
+
+      if (updateError) {
+        return res.status(500).json({
+          success: false,
+          message: "Failed to update campaign progress",
+        });
+      }
+
+      return res.json({
+        success: true,
+        message: "Campaign progress updated",
+      });
+    } catch (error) {
+      console.error("Error in updateCampaignProgress:", error);
       return res.status(500).json({
         success: false,
         message: "Internal server error",
