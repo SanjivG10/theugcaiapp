@@ -139,7 +139,9 @@ export default function AssetLibraryPage() {
   const [createFolderOpen, setCreateFolderOpen] = useState(false);
   const [uploadFileOpen, setUploadFileOpen] = useState(false);
   const [generateImageOpen, setGenerateImageOpen] = useState(false);
+  const [editImageOpen, setEditImageOpen] = useState(false);
   const [selectedFile, setSelectedFile] = useState<AssetFile | null>(null);
+  const [editingFile, setEditingFile] = useState<AssetFile | null>(null);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<{
     type: "folder" | "file";
@@ -162,6 +164,18 @@ export default function AssetLibraryPage() {
     tags: "",
     size: "1024x1024" as "1024x1024" | "1792x1024" | "1024x1792",
     quality: "standard" as "standard" | "hd",
+    style: "vivid" as "vivid" | "natural",
+  });
+
+  const [editForm, setEditForm] = useState({
+    prompt: "",
+    size: "1024x1024" as
+      | "1024x1024"
+      | "1536x1024"
+      | "1024x1536"
+      | "256x256"
+      | "512x512",
+    quality: "auto" as "auto" | "low" | "medium" | "high",
     style: "vivid" as "vivid" | "natural",
   });
   const [isGenerating, setIsGenerating] = useState(false);
@@ -187,7 +201,10 @@ export default function AssetLibraryPage() {
       const params = {
         folder_id: currentFolderId,
         search: searchQuery || undefined,
-        file_type: fileTypeFilter && fileTypeFilter !== "all" ? fileTypeFilter : undefined,
+        file_type:
+          fileTypeFilter && fileTypeFilter !== "all"
+            ? fileTypeFilter
+            : undefined,
         is_generated: generatedFilter,
         page: currentPage,
         limit: itemsPerPage,
@@ -371,6 +388,48 @@ export default function AssetLibraryPage() {
     setCurrentPage(1);
   };
 
+  // Edit image handler
+  const handleEditImage = async () => {
+    if (!editingFile || !editForm.prompt.trim()) {
+      toast.error("Prompt is required");
+      return;
+    }
+
+    setIsGenerating(true);
+    try {
+      const response = await api.editAssetImage(editingFile.id, {
+        prompt: editForm.prompt,
+        size: editForm.size,
+        quality: editForm.quality,
+        style: editForm.style,
+      });
+
+      if (response.success) {
+        toast.success("Image edited successfully");
+        setEditImageOpen(false);
+        setEditForm({
+          prompt: "",
+          size: "1024x1024",
+          quality: "auto",
+          style: "vivid",
+        });
+        loadFiles();
+      } else {
+        toast.error(response.message || "Failed to edit image");
+      }
+    } catch (error) {
+      console.error("Error editing image:", error);
+      toast.error("Failed to edit image");
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  const handleEditClick = (file: AssetFile) => {
+    setEditingFile(file);
+    setEditImageOpen(true);
+  };
+
   // Delete handlers
   const handleDeleteClick = (
     type: "folder" | "file",
@@ -412,14 +471,8 @@ export default function AssetLibraryPage() {
   };
 
   // File download handler
-  const handleDownloadFile = async (file: AssetFile) => {
-    try {
-      await api.downloadAssetFile(file.id);
-      toast.success("Download started");
-    } catch (error) {
-      console.error("Error downloading file:", error);
-      toast.error("Failed to download file");
-    }
+  const handleDownloadFile = (file: AssetFile) => {
+    window.open(file.storage_url, "_blank");
   };
 
   // Format file size
@@ -449,7 +502,7 @@ export default function AssetLibraryPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 p-4">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -828,10 +881,14 @@ export default function AssetLibraryPage() {
             </Select>
             <Select
               value={
-                generatedFilter === undefined ? "all" : generatedFilter.toString()
+                generatedFilter === undefined
+                  ? "all"
+                  : generatedFilter.toString()
               }
               onValueChange={(value) =>
-                setGeneratedFilter(value === "all" ? undefined : value === "true")
+                setGeneratedFilter(
+                  value === "all" ? undefined : value === "true"
+                )
               }
             >
               <SelectTrigger>
@@ -905,7 +962,10 @@ export default function AssetLibraryPage() {
                             <MoreVertical className="w-4 h-4" />
                           </Button>
                         </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
+                        <DropdownMenuContent
+                          align="end"
+                          className="z-50 bg-white border border-gray-200 shadow-lg rounded-md"
+                        >
                           <DropdownMenuItem>
                             <Edit3 className="w-4 h-4 mr-2" />
                             Rename
@@ -994,57 +1054,15 @@ export default function AssetLibraryPage() {
           ) : viewMode === "grid" ? (
             <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
               {files.map((file) => (
-                <Card key={file.id} className="group">
+                <Card key={file.id} className="group hover:cursor-pointer">
                   <CardContent className="p-0">
                     <div className="aspect-square relative overflow-hidden rounded-t-lg bg-muted">
-                      <Image
+                      <img
                         src={file.thumbnail_url || file.storage_url}
                         alt={file.alt_text || file.name}
-                        fill
                         className="object-cover"
                         sizes="(max-width: 768px) 50vw, (max-width: 1024px) 25vw, 16.67vw"
                       />
-                      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/50 transition-colors flex items-center justify-center">
-                        <div className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center space-x-2">
-                          <Button
-                            size="sm"
-                            variant="secondary"
-                            onClick={() => setSelectedFile(file)}
-                          >
-                            <Eye className="w-4 h-4" />
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="secondary"
-                            onClick={() => handleDownloadFile(file)}
-                          >
-                            <Download className="w-4 h-4" />
-                          </Button>
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button size="sm" variant="secondary">
-                                <MoreVertical className="w-4 h-4" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuItem>
-                                <Edit3 className="w-4 h-4 mr-2" />
-                                Edit
-                              </DropdownMenuItem>
-                              <DropdownMenuSeparator />
-                              <DropdownMenuItem
-                                className="text-red-600"
-                                onClick={() =>
-                                  handleDeleteClick("file", file.id, file.name)
-                                }
-                              >
-                                <Trash2 className="w-4 h-4 mr-2" />
-                                Delete
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </div>
-                      </div>
                       {file.is_generated && (
                         <Badge
                           variant="secondary"
@@ -1053,6 +1071,53 @@ export default function AssetLibraryPage() {
                           AI
                         </Badge>
                       )}
+                      <div className="absolute top-2 right-2">
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="opacity-0 group-hover:opacity-100 transition-opacity h-6 w-6 p-0 bg-black/50 hover:bg-black/70 text-white"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <MoreVertical className="w-4 h-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent
+                            align="end"
+                            className="z-50 bg-white border border-gray-200 shadow-lg rounded-md"
+                          >
+                            <DropdownMenuItem
+                              onClick={() => setSelectedFile(file)}
+                            >
+                              <Eye className="w-4 h-4 mr-2" />
+                              View
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={() => handleEditClick(file)}
+                            >
+                              <Edit3 className="w-4 h-4 mr-2" />
+                              Edit
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={() => handleDownloadFile(file)}
+                            >
+                              <Download className="w-4 h-4 mr-2" />
+                              Download
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                              className="text-red-600"
+                              onClick={() =>
+                                handleDeleteClick("file", file.id, file.name)
+                              }
+                            >
+                              <Trash2 className="w-4 h-4 mr-2" />
+                              Delete
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
                     </div>
                     <div className="p-3">
                       <p
@@ -1098,7 +1163,7 @@ export default function AssetLibraryPage() {
                       className="flex items-center p-4 hover:bg-muted/50"
                     >
                       <div className="w-12 h-12 rounded overflow-hidden bg-muted flex-shrink-0 mr-4">
-                        <Image
+                        <img
                           src={file.thumbnail_url || file.storage_url}
                           alt={file.alt_text || file.name}
                           width={48}
@@ -1165,8 +1230,13 @@ export default function AssetLibraryPage() {
                               <MoreVertical className="w-4 h-4" />
                             </Button>
                           </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem>
+                          <DropdownMenuContent
+                            align="end"
+                            className="z-50 bg-white border border-gray-200 shadow-lg rounded-md"
+                          >
+                            <DropdownMenuItem
+                              onClick={() => handleEditClick(file)}
+                            >
                               <Edit3 className="w-4 h-4 mr-2" />
                               Edit
                             </DropdownMenuItem>
@@ -1245,10 +1315,9 @@ export default function AssetLibraryPage() {
             </DialogHeader>
             <div className="grid grid-cols-2 gap-6">
               <div className="aspect-square relative rounded-lg overflow-hidden bg-muted">
-                <Image
+                <img
                   src={selectedFile.storage_url}
                   alt={selectedFile.alt_text || selectedFile.name}
-                  fill
                   className="object-contain"
                 />
               </div>
@@ -1318,7 +1387,10 @@ export default function AssetLibraryPage() {
                     <Download className="w-4 h-4 mr-2" />
                     Download
                   </Button>
-                  <Button variant="outline">
+                  <Button
+                    variant="outline"
+                    onClick={() => handleEditClick(selectedFile)}
+                  >
                     <Edit3 className="w-4 h-4 mr-2" />
                     Edit
                   </Button>
@@ -1328,6 +1400,143 @@ export default function AssetLibraryPage() {
           </DialogContent>
         </Dialog>
       )}
+
+      {/* Edit Image Modal */}
+      <Dialog open={editImageOpen} onOpenChange={setEditImageOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Edit Image</DialogTitle>
+            <DialogDescription>
+              Use AI to edit and modify your existing image with a new prompt.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-4">
+              <div>
+                <label className="text-sm font-medium">Edit Prompt</label>
+                <Textarea
+                  value={editForm.prompt}
+                  onChange={(e) =>
+                    setEditForm((prev) => ({
+                      ...prev,
+                      prompt: e.target.value,
+                    }))
+                  }
+                  placeholder="Describe how you want to modify the image"
+                  rows={3}
+                />
+              </div>
+              {editingFile && (
+                <div>
+                  <label className="text-sm font-medium mb-2 block">
+                    Original Image
+                  </label>
+                  <div className="aspect-square relative rounded-lg overflow-hidden bg-muted">
+                    <img
+                      src={editingFile.thumbnail_url || editingFile.storage_url}
+                      alt={editingFile.alt_text || editingFile.name}
+                      className="object-cover w-full h-full"
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+            <div className="space-y-4">
+              <div>
+                <label className="text-sm font-medium">Size</label>
+                <Select
+                  value={editForm.size}
+                  onValueChange={(
+                    value:
+                      | "1024x1024"
+                      | "1536x1024"
+                      | "1024x1536"
+                      | "256x256"
+                      | "512x512"
+                  ) => setEditForm((prev) => ({ ...prev, size: value }))}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="1024x1024">
+                      Square (1024×1024)
+                    </SelectItem>
+                    <SelectItem value="1536x1024">
+                      Landscape (1536×1024)
+                    </SelectItem>
+                    <SelectItem value="1024x1536">
+                      Portrait (1024×1536)
+                    </SelectItem>
+                    <SelectItem value="256x256">
+                      Small Square (256×256)
+                    </SelectItem>
+                    <SelectItem value="512x512">
+                      Medium Square (512×512)
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <label className="text-sm font-medium">Quality</label>
+                <Select
+                  value={editForm.quality}
+                  onValueChange={(value: "auto" | "low" | "medium" | "high") =>
+                    setEditForm((prev) => ({ ...prev, quality: value }))
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="auto">Auto</SelectItem>
+                    <SelectItem value="low">Low</SelectItem>
+                    <SelectItem value="medium">Medium</SelectItem>
+                    <SelectItem value="high">High</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <label className="text-sm font-medium">Style</label>
+                <Select
+                  value={editForm.style}
+                  onValueChange={(value: "vivid" | "natural") =>
+                    setEditForm((prev) => ({ ...prev, style: value }))
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="vivid">Vivid (More stylized)</SelectItem>
+                    <SelectItem value="natural">
+                      Natural (More realistic)
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </div>
+          <div className="flex justify-end space-x-2">
+            <Button variant="outline" onClick={() => setEditImageOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleEditImage} disabled={isGenerating}>
+              {isGenerating ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Editing...
+                </>
+              ) : (
+                <>
+                  <Edit3 className="w-4 h-4 mr-2" />
+                  Edit Image
+                </>
+              )}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Delete Confirmation Modal */}
       <AlertDialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>

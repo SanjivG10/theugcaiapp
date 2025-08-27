@@ -655,6 +655,19 @@ class ApiClient {
     link.remove();
     window.URL.revokeObjectURL(url);
   }
+
+  async editAssetImage(fileId: string, data: {
+    prompt: string;
+    size?: '1024x1024' | '1536x1024' | '1024x1536' | '256x256' | '512x512';
+    quality?: 'auto' | 'standard' | 'low' | 'medium' | 'high';
+    style?: 'vivid' | 'natural';
+  }): Promise<ApiResponse<AssetFile>> {
+    const response = await this.client.post(
+      `/api/asset-library/files/${fileId}/edit`,
+      data
+    );
+    return response.data;
+  }
 }
 
 // Create and export the API client instance

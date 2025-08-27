@@ -191,8 +191,7 @@ STYLE: High-end product photography with authentic UGC feel, natural colors, pro
     imageUrl,
     prompt,
     size = "1024x1024",
-    quality = "standard",
-    style = "vivid",
+    quality = "auto",
   }: {
     imageUrl: string;
     prompt: string;
@@ -203,8 +202,7 @@ STYLE: High-end product photography with authentic UGC feel, natural colors, pro
       | "1024x1536"
       | "256x256"
       | "512x512";
-    quality?: "auto" | "standard" | "low" | "medium" | "high";
-    style?: "vivid" | "natural";
+    quality?: "auto" | "low" | "medium" | "high";
   }) {
     try {
       const image = await this.downloadImageAsBuffer(imageUrl);

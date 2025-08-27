@@ -48,6 +48,15 @@ const updateFileSchema = z.object({
   metadata: z.record(z.string(), z.any()).optional(),
 });
 
+const editImageSchema = z.object({
+  prompt: z.string().min(1, "Prompt is required").max(1000, "Prompt too long"),
+  size: z
+    .enum(["1024x1024", "1536x1024", "1024x1536", "256x256", "512x512"])
+    .optional(),
+  quality: z.enum(["auto", "low", "medium", "high"]).optional(),
+  style: z.enum(["vivid", "natural"]).optional(),
+});
+
 const getFilesQuerySchema = z.object({
   folder_id: z
     .string()
@@ -317,11 +326,11 @@ export class AssetLibraryController {
 
       // Upload original file to Supabase Storage
       const { error: uploadError } = await supabaseAdmin.storage
-          .from("campaigns")
-          .upload(storagePath, file.buffer, {
-            contentType: file.mimetype,
-            cacheControl: "31536000", // 1 year
-          });
+        .from("campaigns")
+        .upload(storagePath, file.buffer, {
+          contentType: file.mimetype,
+          cacheControl: "31536000", // 1 year
+        });
 
       if (uploadError) {
         return res.status(400).json({
@@ -488,11 +497,11 @@ export class AssetLibraryController {
       }/generated/${uniqueFileName}`;
 
       const { error: uploadError } = await supabaseAdmin.storage
-          .from("campaigns")
-          .upload(storagePath, imageBuffer, {
-            contentType: "image/png",
-            cacheControl: "31536000",
-          });
+        .from("campaigns")
+        .upload(storagePath, imageBuffer, {
+          contentType: "image/png",
+          cacheControl: "31536000",
+        });
 
       if (uploadError) {
         return res.status(400).json({
@@ -744,6 +753,119 @@ export class AssetLibraryController {
       return res.redirect(fileResult.data.storage_url);
     } catch (error) {
       console.error("Error downloading file:", error);
+      return res.status(500).json({
+        success: false,
+        message: "Internal server error",
+      });
+    }
+  }
+
+  static async editImage(req: Request, res: Response) {
+    try {
+      const userId = req.user?.id;
+      if (!userId) {
+        return res.status(401).json({
+          success: false,
+          message: "Authentication required",
+        });
+      }
+
+      const { fileId } = req.params;
+
+      // Validate request body
+      const validation = editImageSchema.safeParse(req.body);
+      if (!validation.success) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid request data",
+          errors: validation.error.issues,
+        });
+      }
+
+      const { prompt, size, quality, style } = validation.data;
+
+      // Get the original file
+      const fileResult = await AssetLibraryService.getFile(userId, fileId);
+      if (!fileResult.success || !fileResult.data) {
+        return res.status(404).json(fileResult);
+      }
+
+      const originalFile = fileResult.data;
+
+      // Edit the image using OpenAI
+      const editResult = await openaiService.editAssetImage({
+        imageUrl: originalFile.storage_url,
+        prompt,
+        size,
+        quality,
+      });
+
+      if (!editResult.success || !editResult.data) {
+        return res.status(400).json({
+          success: false,
+          message: editResult.message || "Failed to edit image",
+        });
+      }
+
+      // Convert buffer to file and upload to Supabase
+      const buffer = editResult.data.buffer;
+      const fileName = `edited_${Date.now()}_${originalFile.original_name}`;
+      const filePath = `assets/${userId}/${fileName}`;
+
+      // Process the image
+      const processedImage = await sharp(buffer)
+        .jpeg({ quality: 85 })
+        .toBuffer();
+
+      const { error: uploadError } = await supabaseAdmin.storage
+        .from("assets")
+        .upload(filePath, processedImage, {
+          contentType: "image/jpeg",
+        });
+
+      if (uploadError) {
+        return res.status(500).json({
+          success: false,
+          message: "Failed to upload edited image",
+        });
+      }
+
+      // Get the public URL
+      const { data: urlData } = supabaseAdmin.storage
+        .from("assets")
+        .getPublicUrl(filePath);
+
+      // Create new file record
+      const newFileData = {
+        name: `Edited ${originalFile.name}`,
+        original_name: fileName,
+        file_type: "image/jpeg",
+        file_size: processedImage.length,
+        storage_url: urlData.publicUrl,
+        storage_path: filePath,
+        is_generated: true,
+        generation_prompt: prompt,
+        generation_model: "gpt-image-1",
+        generation_settings: { size, quality, style },
+        alt_text: originalFile.alt_text,
+        tags: [...(originalFile.tags || []), "edited"],
+        metadata: { ...originalFile.metadata, edited_from: originalFile.id },
+        folder_id: originalFile.folder_id,
+        business_id: originalFile.business_id,
+      };
+
+      const createResult = await AssetLibraryService.createFile(
+        userId,
+        newFileData
+      );
+
+      if (!createResult.success) {
+        return res.status(500).json(createResult);
+      }
+
+      return res.json(createResult);
+    } catch (error) {
+      console.error("Error editing image:", error);
       return res.status(500).json({
         success: false,
         message: "Internal server error",

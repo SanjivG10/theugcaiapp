@@ -1,32 +1,5 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -37,25 +10,52 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Textarea } from "@/components/ui/textarea";
+import { api } from "@/lib/api";
+import {
+  Check,
+  ChevronLeft,
+  Edit3,
+  Folder,
   FolderPlus,
+  Grid3X3,
+  Image as ImageIcon,
+  List,
+  Loader2,
+  MoreVertical,
+  Search,
+  Trash2,
   Upload,
   Wand2,
-  Search,
-  Grid3X3,
-  List,
-  Folder,
-  Image as ImageIcon,
-  MoreVertical,
-  Edit3,
-  Trash2,
-  ChevronLeft,
-  Loader2,
-  Check,
 } from "lucide-react";
-import { api } from "@/lib/api";
+import React, { useCallback, useEffect, useState } from "react";
 import toast from "react-hot-toast";
-import Image from "next/image";
 
 interface AssetFolder {
   id: string;
@@ -134,7 +134,11 @@ export function AssetLibraryModal({
   // Dialog states
   const [createFolderOpen, setCreateFolderOpen] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
-  const [deleteTarget, setDeleteTarget] = useState<{ type: "folder" | "file"; id: string; name: string } | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<{
+    type: "folder" | "file";
+    id: string;
+    name: string;
+  } | null>(null);
 
   // Form states
   const [folderForm, setFolderForm] = useState({
@@ -244,21 +248,27 @@ export function AssetLibraryModal({
   };
 
   // Upload file handler
-  const handleUploadFile = async (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleUploadFile = async (
+    event: React.ChangeEvent<HTMLInputElement>
+  ) => {
     const files = event.target.files;
     if (!files || files.length === 0) return;
 
     // Validate file types and sizes
     for (const file of Array.from(files)) {
-      const isValidType = acceptedFileTypes.some(type => 
-        type === "*/*" || file.type.startsWith(type.replace("/*", ""))
+      const isValidType = acceptedFileTypes.some(
+        (type) => type === "*/*" || file.type.startsWith(type.replace("/*", ""))
       );
       if (!isValidType) {
         toast.error(`File type ${file.type} is not allowed`);
         return;
       }
       if (file.size > maxFileSize) {
-        toast.error(`File ${file.name} is too large (max ${Math.round(maxFileSize / 1024 / 1024)}MB)`);
+        toast.error(
+          `File ${file.name} is too large (max ${Math.round(
+            maxFileSize / 1024 / 1024
+          )}MB)`
+        );
         return;
       }
     }
@@ -275,7 +285,7 @@ export function AssetLibraryModal({
         formData.append("name", file.name.split(".")[0]);
 
         const response = await api.uploadAssetFile(formData);
-        
+
         if (response.success) {
           setUploadProgress(((i + 1) / files.length) * 100);
         } else {
@@ -309,7 +319,9 @@ export function AssetLibraryModal({
         name: generateForm.name,
         prompt: generateForm.prompt,
         alt_text: generateForm.alt_text || undefined,
-        tags: generateForm.tags ? generateForm.tags.split(",").map(t => t.trim()) : undefined,
+        tags: generateForm.tags
+          ? generateForm.tags.split(",").map((t) => t.trim())
+          : undefined,
         size: generateForm.size,
         quality: generateForm.quality,
         style: generateForm.style,
@@ -346,10 +358,12 @@ export function AssetLibraryModal({
 
   const navigateBack = () => {
     if (folderPath.length === 0) return;
-    
+
     const newPath = folderPath.slice(0, -1);
     setFolderPath(newPath);
-    setCurrentFolderId(newPath.length > 0 ? newPath[newPath.length - 1].id : null);
+    setCurrentFolderId(
+      newPath.length > 0 ? newPath[newPath.length - 1].id : null
+    );
   };
 
   const navigateToRoot = () => {
@@ -360,11 +374,11 @@ export function AssetLibraryModal({
   // Selection handlers
   const handleAssetSelect = (asset: AssetFile) => {
     if (multiSelect) {
-      const isSelected = selectedAssets.some(a => a.id === asset.id);
+      const isSelected = selectedAssets.some((a) => a.id === asset.id);
       if (isSelected) {
-        setSelectedAssets(prev => prev.filter(a => a.id !== asset.id));
+        setSelectedAssets((prev) => prev.filter((a) => a.id !== asset.id));
       } else {
-        setSelectedAssets(prev => [...prev, asset]);
+        setSelectedAssets((prev) => [...prev, asset]);
       }
     } else {
       setSelectedAssets([asset]);
@@ -372,11 +386,15 @@ export function AssetLibraryModal({
   };
 
   const isAssetSelected = (asset: AssetFile) => {
-    return selectedAssets.some(a => a.id === asset.id);
+    return selectedAssets.some((a) => a.id === asset.id);
   };
 
   // Delete handlers
-  const handleDeleteClick = (type: "folder" | "file", id: string, name: string) => {
+  const handleDeleteClick = (
+    type: "folder" | "file",
+    id: string,
+    name: string
+  ) => {
     setDeleteTarget({ type, id, name });
     setDeleteConfirmOpen(true);
   };
@@ -430,8 +448,12 @@ export function AssetLibraryModal({
       <Dialog open={isOpen} onOpenChange={onClose}>
         <DialogContent className="max-w-6xl h-[85vh] flex flex-col gap-0 p-0 bg-white dark:bg-gray-900">
           <DialogHeader className="bg-gradient-to-r from-blue-600 to-purple-600 text-white p-6 border-0 rounded-t-lg">
-            <DialogTitle className="text-2xl font-bold text-white">{title}</DialogTitle>
-            <DialogDescription className="text-blue-100 text-base mt-2">{description}</DialogDescription>
+            <DialogTitle className="text-2xl font-bold text-white">
+              {title}
+            </DialogTitle>
+            <DialogDescription className="text-blue-100 text-base mt-2">
+              {description}
+            </DialogDescription>
           </DialogHeader>
 
           <Tabs defaultValue="browse" className="flex-1 flex flex-col p-6">
@@ -441,11 +463,17 @@ export function AssetLibraryModal({
               <TabsTrigger value="generate">Generate Image</TabsTrigger>
             </TabsList>
 
-            <TabsContent value="browse" className="flex-1 flex flex-col space-y-4">
+            <TabsContent
+              value="browse"
+              className="flex-1 flex flex-col space-y-4"
+            >
               {/* Breadcrumb Navigation */}
               {folderPath.length > 0 && (
                 <div className="flex items-center space-x-2 text-sm text-muted-foreground">
-                  <button onClick={navigateToRoot} className="hover:text-foreground">
+                  <button
+                    onClick={navigateToRoot}
+                    className="hover:text-foreground"
+                  >
                     Root
                   </button>
                   {folderPath.map((folder, index) => (
@@ -484,7 +512,7 @@ export function AssetLibraryModal({
                     New Folder
                   </Button>
                 </div>
-                
+
                 <div className="flex items-center space-x-2">
                   <div className="relative">
                     <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
@@ -498,9 +526,15 @@ export function AssetLibraryModal({
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => setViewMode(viewMode === "grid" ? "list" : "grid")}
+                    onClick={() =>
+                      setViewMode(viewMode === "grid" ? "list" : "grid")
+                    }
                   >
-                    {viewMode === "grid" ? <List className="w-4 h-4" /> : <Grid3X3 className="w-4 h-4" />}
+                    {viewMode === "grid" ? (
+                      <List className="w-4 h-4" />
+                    ) : (
+                      <Grid3X3 className="w-4 h-4" />
+                    )}
                   </Button>
                 </div>
               </div>
@@ -552,7 +586,11 @@ export function AssetLibraryModal({
                                       className="text-red-600"
                                       onClick={(e) => {
                                         e.stopPropagation();
-                                        handleDeleteClick("folder", folder.id, folder.name);
+                                        handleDeleteClick(
+                                          "folder",
+                                          folder.id,
+                                          folder.name
+                                        );
                                       }}
                                     >
                                       <Trash2 className="w-4 h-4 mr-2" />
@@ -598,10 +636,9 @@ export function AssetLibraryModal({
                               }`}
                               onClick={() => handleAssetSelect(file)}
                             >
-                              <Image
+                              <img
                                 src={file.thumbnail_url || file.storage_url}
                                 alt={file.alt_text || file.name}
-                                fill
                                 className="object-cover"
                                 sizes="(max-width: 768px) 50vw, (max-width: 1024px) 25vw, 16.67vw"
                               />
@@ -613,12 +650,18 @@ export function AssetLibraryModal({
                                 </div>
                               )}
                               {file.is_generated && (
-                                <Badge variant="secondary" className="absolute top-1 left-1 text-xs">
+                                <Badge
+                                  variant="secondary"
+                                  className="absolute top-1 left-1 text-xs"
+                                >
                                   AI
                                 </Badge>
                               )}
                               <div className="absolute bottom-0 left-0 right-0 bg-black/50 text-white p-1">
-                                <p className="text-xs truncate" title={file.name}>
+                                <p
+                                  className="text-xs truncate"
+                                  title={file.name}
+                                >
                                   {file.name}
                                 </p>
                               </div>
@@ -638,7 +681,7 @@ export function AssetLibraryModal({
                               onClick={() => handleAssetSelect(file)}
                             >
                               <div className="w-10 h-10 rounded overflow-hidden bg-muted flex-shrink-0 mr-3">
-                                <Image
+                                <img
                                   src={file.thumbnail_url || file.storage_url}
                                   alt={file.alt_text || file.name}
                                   width={40}
@@ -648,11 +691,21 @@ export function AssetLibraryModal({
                               </div>
                               <div className="flex-1 min-w-0">
                                 <div className="flex items-center space-x-2">
-                                  <p className="font-medium text-sm truncate">{file.name}</p>
-                                  {file.is_generated && <Badge variant="secondary" className="text-xs">AI</Badge>}
+                                  <p className="font-medium text-sm truncate">
+                                    {file.name}
+                                  </p>
+                                  {file.is_generated && (
+                                    <Badge
+                                      variant="secondary"
+                                      className="text-xs"
+                                    >
+                                      AI
+                                    </Badge>
+                                  )}
                                 </div>
                                 <p className="text-xs text-muted-foreground">
-                                  {formatFileSize(file.file_size)} • {file.width} × {file.height}
+                                  {formatFileSize(file.file_size)} •{" "}
+                                  {file.width} × {file.height}
                                 </p>
                               </div>
                               {isAssetSelected(file) && (
@@ -675,7 +728,9 @@ export function AssetLibraryModal({
                 <div className="text-center max-w-lg w-full">
                   <div className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-2xl p-12 bg-gray-50 dark:bg-gray-800/50 hover:border-blue-400 dark:hover:border-blue-500 transition-colors">
                     <Upload className="h-20 w-20 text-gray-400 mx-auto mb-6" />
-                    <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-3">Upload Files</h3>
+                    <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-3">
+                      Upload Files
+                    </h3>
                     <p className="text-gray-600 dark:text-gray-400 mb-8 text-lg">
                       Select images from your computer to add to your library
                     </p>
@@ -692,7 +747,9 @@ export function AssetLibraryModal({
                         <div className="space-y-3 bg-white dark:bg-gray-800 p-4 rounded-xl border">
                           <div className="flex items-center justify-between text-sm font-medium">
                             <span>Uploading files...</span>
-                            <span className="text-blue-600">{Math.round(uploadProgress)}%</span>
+                            <span className="text-blue-600">
+                              {Math.round(uploadProgress)}%
+                            </span>
                           </div>
                           <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-3">
                             <div
@@ -716,7 +773,9 @@ export function AssetLibraryModal({
                 <div className="max-w-2xl mx-auto space-y-6">
                   <div className="text-center">
                     <Wand2 className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
-                    <h3 className="text-lg font-semibold mb-2">Generate AI Image</h3>
+                    <h3 className="text-lg font-semibold mb-2">
+                      Generate AI Image
+                    </h3>
                     <p className="text-muted-foreground">
                       Create a new image using AI based on your description.
                     </p>
@@ -725,35 +784,63 @@ export function AssetLibraryModal({
                   <div className="grid grid-cols-2 gap-6">
                     <div className="space-y-4">
                       <div>
-                        <label className="text-sm font-medium">Image Name</label>
+                        <label className="text-sm font-medium">
+                          Image Name
+                        </label>
                         <Input
                           value={generateForm.name}
-                          onChange={(e) => setGenerateForm(prev => ({ ...prev, name: e.target.value }))}
+                          onChange={(e) =>
+                            setGenerateForm((prev) => ({
+                              ...prev,
+                              name: e.target.value,
+                            }))
+                          }
                           placeholder="Enter image name"
                         />
                       </div>
                       <div>
-                        <label className="text-sm font-medium">Description/Prompt</label>
+                        <label className="text-sm font-medium">
+                          Description/Prompt
+                        </label>
                         <Textarea
                           value={generateForm.prompt}
-                          onChange={(e) => setGenerateForm(prev => ({ ...prev, prompt: e.target.value }))}
+                          onChange={(e) =>
+                            setGenerateForm((prev) => ({
+                              ...prev,
+                              prompt: e.target.value,
+                            }))
+                          }
                           placeholder="Describe the image you want to generate"
                           rows={4}
                         />
                       </div>
                       <div>
-                        <label className="text-sm font-medium">Alt Text (Optional)</label>
+                        <label className="text-sm font-medium">
+                          Alt Text (Optional)
+                        </label>
                         <Input
                           value={generateForm.alt_text}
-                          onChange={(e) => setGenerateForm(prev => ({ ...prev, alt_text: e.target.value }))}
+                          onChange={(e) =>
+                            setGenerateForm((prev) => ({
+                              ...prev,
+                              alt_text: e.target.value,
+                            }))
+                          }
                           placeholder="Alt text for accessibility"
                         />
                       </div>
                       <div>
-                        <label className="text-sm font-medium">Tags (Optional)</label>
+                        <label className="text-sm font-medium">
+                          Tags (Optional)
+                        </label>
                         <Input
                           value={generateForm.tags}
-                          onChange={(e) => setGenerateForm(prev => ({ ...prev, tags: e.target.value }))}
+                          onChange={(e) =>
+                            setGenerateForm((prev) => ({
+                              ...prev,
+                              tags: e.target.value,
+                            }))
+                          }
                           placeholder="tag1, tag2, tag3"
                         />
                       </div>
@@ -763,17 +850,28 @@ export function AssetLibraryModal({
                         <label className="text-sm font-medium">Size</label>
                         <Select
                           value={generateForm.size}
-                          onValueChange={(value: "1024x1024" | "1792x1024" | "1024x1792") =>
-                            setGenerateForm(prev => ({ ...prev, size: value }))
+                          onValueChange={(
+                            value: "1024x1024" | "1792x1024" | "1024x1792"
+                          ) =>
+                            setGenerateForm((prev) => ({
+                              ...prev,
+                              size: value,
+                            }))
                           }
                         >
                           <SelectTrigger>
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="1024x1024">Square (1024×1024)</SelectItem>
-                            <SelectItem value="1792x1024">Landscape (1792×1024)</SelectItem>
-                            <SelectItem value="1024x1792">Portrait (1024×1792)</SelectItem>
+                            <SelectItem value="1024x1024">
+                              Square (1024×1024)
+                            </SelectItem>
+                            <SelectItem value="1792x1024">
+                              Landscape (1792×1024)
+                            </SelectItem>
+                            <SelectItem value="1024x1792">
+                              Portrait (1024×1792)
+                            </SelectItem>
                           </SelectContent>
                         </Select>
                       </div>
@@ -782,7 +880,10 @@ export function AssetLibraryModal({
                         <Select
                           value={generateForm.quality}
                           onValueChange={(value: "standard" | "hd") =>
-                            setGenerateForm(prev => ({ ...prev, quality: value }))
+                            setGenerateForm((prev) => ({
+                              ...prev,
+                              quality: value,
+                            }))
                           }
                         >
                           <SelectTrigger>
@@ -799,21 +900,32 @@ export function AssetLibraryModal({
                         <Select
                           value={generateForm.style}
                           onValueChange={(value: "vivid" | "natural") =>
-                            setGenerateForm(prev => ({ ...prev, style: value }))
+                            setGenerateForm((prev) => ({
+                              ...prev,
+                              style: value,
+                            }))
                           }
                         >
                           <SelectTrigger>
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="vivid">Vivid (More stylized)</SelectItem>
-                            <SelectItem value="natural">Natural (More realistic)</SelectItem>
+                            <SelectItem value="vivid">
+                              Vivid (More stylized)
+                            </SelectItem>
+                            <SelectItem value="natural">
+                              Natural (More realistic)
+                            </SelectItem>
                           </SelectContent>
                         </Select>
                       </div>
                       <Button
                         onClick={handleGenerateImage}
-                        disabled={isGenerating || !generateForm.name.trim() || !generateForm.prompt.trim()}
+                        disabled={
+                          isGenerating ||
+                          !generateForm.name.trim() ||
+                          !generateForm.prompt.trim()
+                        }
                         className="w-full"
                       >
                         {isGenerating ? (
@@ -842,15 +954,16 @@ export function AssetLibraryModal({
                 <div className="flex items-center space-x-3 bg-blue-50 dark:bg-blue-900/30 px-4 py-2 rounded-full">
                   <div className="w-3 h-3 bg-blue-500 rounded-full animate-pulse"></div>
                   <span className="text-blue-700 dark:text-blue-300 font-semibold">
-                    {selectedAssets.length} asset{selectedAssets.length === 1 ? "" : "s"} selected
+                    {selectedAssets.length} asset
+                    {selectedAssets.length === 1 ? "" : "s"} selected
                   </span>
                 </div>
               )}
             </div>
             <div className="flex space-x-4">
-              <Button 
-                variant="outline" 
-                onClick={onClose} 
+              <Button
+                variant="outline"
+                onClick={onClose}
                 className="px-8 py-2 border-2 border-gray-300 hover:border-gray-400 rounded-xl"
               >
                 Cancel
@@ -861,7 +974,8 @@ export function AssetLibraryModal({
                 className="px-8 py-2 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white rounded-xl shadow-lg hover:shadow-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <Check className="w-4 h-4 mr-2" />
-                Select {selectedAssets.length > 0 && `(${selectedAssets.length})`}
+                Select{" "}
+                {selectedAssets.length > 0 && `(${selectedAssets.length})`}
               </Button>
             </div>
           </div>
@@ -872,7 +986,9 @@ export function AssetLibraryModal({
       <Dialog open={createFolderOpen} onOpenChange={setCreateFolderOpen}>
         <DialogContent className="bg-white dark:bg-gray-900 border-2 border-gray-200 dark:border-gray-700">
           <DialogHeader className="border-b border-gray-200 dark:border-gray-700 pb-4">
-            <DialogTitle className="text-lg font-bold text-gray-900 dark:text-white">Create New Folder</DialogTitle>
+            <DialogTitle className="text-lg font-bold text-gray-900 dark:text-white">
+              Create New Folder
+            </DialogTitle>
             <DialogDescription className="text-gray-600 dark:text-gray-400">
               Create a new folder to organize your assets.
             </DialogDescription>
@@ -882,15 +998,24 @@ export function AssetLibraryModal({
               <label className="text-sm font-medium">Folder Name</label>
               <Input
                 value={folderForm.name}
-                onChange={(e) => setFolderForm(prev => ({ ...prev, name: e.target.value }))}
+                onChange={(e) =>
+                  setFolderForm((prev) => ({ ...prev, name: e.target.value }))
+                }
                 placeholder="Enter folder name"
               />
             </div>
             <div>
-              <label className="text-sm font-medium">Description (Optional)</label>
+              <label className="text-sm font-medium">
+                Description (Optional)
+              </label>
               <Textarea
                 value={folderForm.description}
-                onChange={(e) => setFolderForm(prev => ({ ...prev, description: e.target.value }))}
+                onChange={(e) =>
+                  setFolderForm((prev) => ({
+                    ...prev,
+                    description: e.target.value,
+                  }))
+                }
                 placeholder="Enter folder description"
                 rows={2}
               />
@@ -901,9 +1026,13 @@ export function AssetLibraryModal({
                 {FOLDER_COLORS.map((color) => (
                   <button
                     key={color.value}
-                    onClick={() => setFolderForm(prev => ({ ...prev, color: color.value }))}
+                    onClick={() =>
+                      setFolderForm((prev) => ({ ...prev, color: color.value }))
+                    }
                     className={`w-6 h-6 rounded-full border-2 ${
-                      folderForm.color === color.value ? "border-foreground" : "border-transparent"
+                      folderForm.color === color.value
+                        ? "border-foreground"
+                        : "border-transparent"
                     }`}
                     style={{ backgroundColor: color.value }}
                     title={color.name}
@@ -913,7 +1042,10 @@ export function AssetLibraryModal({
             </div>
           </div>
           <div className="flex justify-end space-x-2">
-            <Button variant="outline" onClick={() => setCreateFolderOpen(false)}>
+            <Button
+              variant="outline"
+              onClick={() => setCreateFolderOpen(false)}
+            >
               Cancel
             </Button>
             <Button onClick={handleCreateFolder}>Create Folder</Button>
@@ -922,26 +1054,31 @@ export function AssetLibraryModal({
       </Dialog>
 
       {/* Delete Confirmation Dialog */}
-      <AlertDialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
-        <AlertDialogContent className="bg-white dark:bg-gray-900 border-2 border-red-200 dark:border-red-800">
-          <AlertDialogHeader>
-            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This will permanently delete {deleteTarget?.type} &quot;{deleteTarget?.name}&quot;.
-              This action cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
+      <Dialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
+        <DialogContent className="bg-white  border-2 border-red-200 ">
+          <DialogHeader>
+            <DialogTitle>Are you sure?</DialogTitle>
+            <DialogDescription>
+              This will permanently delete {deleteTarget?.type} &quot;
+              {deleteTarget?.name}&quot;. This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setDeleteConfirmOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button
               onClick={handleDeleteConfirm}
               className="bg-red-600 hover:bg-red-700"
             >
               Delete
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }

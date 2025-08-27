@@ -21,5 +21,6 @@ router.get("/files/:fileId", AssetLibraryController.getFile);
 router.put("/files/:fileId", AssetLibraryController.updateFile);
 router.delete("/files/:fileId", AssetLibraryController.deleteFile);
 router.get("/files/:fileId/download", AssetLibraryController.downloadFile);
+router.post("/files/:fileId/edit", AssetLibraryController.editImage);
 
 export { router as assetLibraryRoutes };
