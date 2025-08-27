@@ -1,8 +1,6 @@
 // API Types based on server endpoints and database schema
 // These types are designed to work with the Supabase database types
 
-import { SceneScript } from "@/contexts/CampaignContext";
-
 export type Json =
   | string
   | number
@@ -383,7 +381,7 @@ export interface CampaignStepData {
   // Step 2: Script Generation (matches API response)
   step_2?: {
     script?: string;
-    sceneScripts?: SceneScript[];
+    sceneScripts?: unknown[];
     scriptSettings?: CampaignScriptSettings;
   };
 
@@ -427,14 +425,33 @@ export interface Campaign {
   status?: "draft" | "in_progress" | "completed" | "failed" | "cancelled";
   current_step?: number;
   total_steps?: number;
+  scenes_number?: number;
+  final_url?: string;
   step_data?: CampaignStepData;
   settings?: CampaignSettings;
-  scenes_data?: Array<{
-    index: number;
-    script?: string;
-    image_url?: string;
-    video_url?: string;
-    audio_url?: string;
+  script?: {
+    tone: string;
+    style: string;
+    prompt: string;
+  };
+  scene_data?: Array<{
+    scene_number: number;
+    scene_script?: string;
+    audio?: {
+      previewUrl?: string;
+      id?: string;
+      metadata?: Json;
+    };
+    image?: {
+      name?: string;
+      url?: string;
+      isProcessing?: boolean;
+    };
+    video?: {
+      prompt?: string;
+      url?: string;
+      isProcessing?: boolean;
+    };
   }>;
   metadata?: Json;
   estimated_credits?: number;
@@ -453,16 +470,37 @@ export interface Campaign {
 export interface CreateCampaignRequest {
   name: string;
   description?: string;
-  campaign_type?: "video" | "image" | "script";
-  prompt?: string;
-  settings?: CampaignSettings;
-  estimated_credits?: number;
-  is_template?: boolean;
+  scene_number?: number;
 }
 
 export interface UpdateCampaignRequest {
   name?: string;
   description?: string;
+  scenes_number?: number;
+  script?: {
+    tone: string;
+    style: string;
+    prompt: string;
+  };
+  scene_data?: Array<{
+    scene_number: number;
+    scene_script?: string;
+    audio?: {
+      previewUrl?: string;
+      id?: string;
+      metadata?: Json;
+    };
+    image?: {
+      name?: string;
+      url?: string;
+      isProcessing?: boolean;
+    };
+    video?: {
+      prompt?: string;
+      url?: string;
+      isProcessing?: boolean;
+    };
+  }>;
   campaign_type?: "video" | "image" | "script";
   prompt?: string;
   settings?: CampaignSettings;
@@ -788,10 +826,10 @@ export interface AssetFile {
   is_generated: boolean;
   generation_prompt?: string;
   generation_model?: string;
-  generation_settings?: Record<string, any>;
+  generation_settings?: Record<string, unknown>;
   alt_text?: string;
   tags: string[];
-  metadata: Record<string, any>;
+  metadata: Record<string, unknown>;
   download_count: number;
   last_accessed_at?: string;
   created_at: string;
@@ -804,7 +842,7 @@ export interface AssetFileShare {
   shared_by_user_id: string;
   shared_with_user_id?: string;
   shared_with_business_id?: string;
-  permission: 'view' | 'download' | 'edit';
+  permission: "view" | "download" | "edit";
   expires_at?: string;
   created_at: string;
 }
@@ -839,10 +877,10 @@ export interface CreateAssetFileRequest {
   is_generated?: boolean;
   generation_prompt?: string;
   generation_model?: string;
-  generation_settings?: Record<string, any>;
+  generation_settings?: Record<string, unknown>;
   alt_text?: string;
   tags?: string[];
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 export interface UpdateAssetFileRequest {
@@ -850,7 +888,7 @@ export interface UpdateAssetFileRequest {
   name?: string;
   alt_text?: string;
   tags?: string[];
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 export interface GetAssetFilesOptions {
@@ -862,8 +900,8 @@ export interface GetAssetFilesOptions {
   search?: string;
   page?: number;
   limit?: number;
-  sort_by?: 'created_at' | 'name' | 'file_size' | 'download_count';
-  sort_order?: 'asc' | 'desc';
+  sort_by?: "created_at" | "name" | "file_size" | "download_count";
+  sort_order?: "asc" | "desc";
 }
 
 export interface AssetFilesResponse {
@@ -881,9 +919,9 @@ export interface GenerateAssetImageRequest {
   name: string;
   alt_text?: string;
   tags?: string[];
-  size?: '1024x1024' | '1792x1024' | '1024x1792';
-  quality?: 'standard' | 'hd';
-  style?: 'vivid' | 'natural';
+  size?: "1024x1024" | "1792x1024" | "1024x1792";
+  quality?: "standard" | "hd";
+  style?: "vivid" | "natural";
 }
 
 export interface GenerateAssetImageResponse {

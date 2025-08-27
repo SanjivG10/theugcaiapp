@@ -16,6 +16,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Slider } from "@/components/ui/slider";
 import { URLS } from "@/constants/urls";
 import { api } from "@/lib/api";
 import toast from "react-hot-toast";
@@ -30,6 +31,10 @@ const createCampaignSchema = z.object({
     .string()
     .max(500, "Description must be less than 500 characters")
     .optional(),
+  scenesNumber: z
+    .number()
+    .min(1, "At least 1 scene is required")
+    .max(5, "Maximum 5 scenes allowed"),
 });
 
 type CreateCampaignFormData = z.infer<typeof createCampaignSchema>;
@@ -47,14 +52,19 @@ export function CreateCampaignModal({
 }: CreateCampaignModalProps) {
   const router = useRouter();
   const [isCreating, setIsCreating] = useState(false);
+  const [scenesNumber, setScenesNumber] = useState(1);
 
   const {
     register,
     handleSubmit,
     formState: { errors },
     reset,
+    setValue,
   } = useForm<CreateCampaignFormData>({
     resolver: zodResolver(createCampaignSchema),
+    defaultValues: {
+      scenesNumber: 1,
+    },
   });
 
   const onSubmit = async (data: CreateCampaignFormData) => {
@@ -64,6 +74,7 @@ export function CreateCampaignModal({
       const response = await api.createCampaign({
         name: data.name,
         description: data.description,
+        scene_number: data.scenesNumber,
       });
 
       if (response.success) {
@@ -95,8 +106,15 @@ export function CreateCampaignModal({
   const handleClose = () => {
     if (!isCreating) {
       reset();
+      setScenesNumber(1);
       onOpenChange(false);
     }
+  };
+
+  const handleScenesNumberChange = (value: number[]) => {
+    const newValue = value[0];
+    setScenesNumber(newValue);
+    setValue("scenesNumber", newValue);
   };
 
   return (
@@ -141,6 +159,44 @@ export function CreateCampaignModal({
             {errors.description && (
               <p className="text-destructive text-sm">
                 {errors.description.message}
+              </p>
+            )}
+          </div>
+
+          {/* Number of Scenes */}
+          <div className="space-y-4">
+            <Label>Number of Scenes</Label>
+            <p className="text-sm text-muted-foreground">
+              How many scenes do you want in your video? Each scene will be
+              approximately 8 seconds.
+            </p>
+            <div className="space-y-4">
+              <Slider
+                value={[scenesNumber]}
+                onValueChange={handleScenesNumberChange}
+                max={5}
+                min={1}
+                step={1}
+                className="w-full"
+                disabled={isCreating}
+              />
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-muted-foreground">1 scene</span>
+                <div className="text-center">
+                  <span className="text-lg font-semibold text-foreground">
+                    {scenesNumber}
+                  </span>
+                  <p className="text-xs text-muted-foreground">
+                    scene{scenesNumber > 1 ? "s" : ""} (~{scenesNumber * 8}{" "}
+                    seconds)
+                  </p>
+                </div>
+                <span className="text-sm text-muted-foreground">5 scenes</span>
+              </div>
+            </div>
+            {errors.scenesNumber && (
+              <p className="text-destructive text-sm">
+                {errors.scenesNumber.message}
               </p>
             )}
           </div>

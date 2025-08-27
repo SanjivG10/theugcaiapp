@@ -7,126 +7,94 @@ import {
   ReactNode,
   useEffect,
 } from "react";
-import { Campaign, VoiceData } from "@/types";
+import { Campaign, VoiceData, Json } from "@/types";
 
-export interface ProductImage {
-  id: string;
-  file?: File;
-  url: string;
-  name: string;
+// Updated interfaces to match new campaign structure
+export interface AudioData {
+  previewUrl?: string;
+  id?: string;
+  metadata?: Json;
 }
 
-export interface GeneratedImage {
-  id: string;
-  url: string;
-  sceneNumber: number;
-  prompt: string;
-  approved: boolean;
+export interface ImageData {
+  name?: string;
+  url?: string;
+  isProcessing?: boolean;
 }
 
-export interface VideoPrompt {
-  id: string;
-  imageId: string;
-  prompt: string;
-  animationStyle: string;
-  duration: number;
-}
-
-export interface GeneratedVideo {
-  id: string;
-  imageId: string;
-  url: string;
-  status: "queued" | "processing" | "completed" | "failed";
-  progress?: number;
-}
-
-export interface SceneScript {
-  id: string;
-  sceneNumber: number;
-  mode: "ai" | "manual";
-  content: string;
-  aiPrompt?: string;
-  isGenerating?: boolean;
+export interface VideoData {
+  prompt?: string;
+  url?: string;
+  isProcessing?: boolean;
 }
 
 export interface SceneData {
-  sceneNumber: number;
-  script?: SceneScript;
-  selectedImages: string[]; // Product image IDs
-  generatedImage?: GeneratedImage;
-  audioUrl?: string;
-  videoUrl?: string;
+  scene_number: number;
+  scene_script?: string;
+  audio?: AudioData;
+  image?: ImageData;
+  video?: VideoData;
+}
+
+export interface ScriptData {
+  tone: string;
+  style: string;
+  prompt: string;
 }
 
 export interface CampaignState {
+  // Basic campaign info
   campaignId?: string;
   campaignName: string;
-  productImages: ProductImage[];
+  description: string;
+  scenesNumber: number;
+  status: "draft" | "in_progress" | "completed" | "failed" | "cancelled";
+  currentStep: number;
+  creditsUsed: number;
+  finalUrl?: string;
+  
+  // New structured data that syncs with database
+  script?: ScriptData;
+  sceneData: SceneData[];
+
+  // Backward compatibility fields for existing components
   videoDescription: string;
   numberOfScenes: number;
   campaignObjective: string;
   voice: VoiceData;
-  script: string;
-  scriptMode?: "ai" | "manual";
-  scriptSettings?: {
-    tone: string;
-    length?: string;
-    style: string;
-  };
-  sceneScripts?: SceneScript[];
-  scenesData: SceneData[]; // New structured scene data
-  generatedImages: GeneratedImage[];
-  selectedImages: string[];
-  videoPrompts: VideoPrompt[];
-  generatedVideos: GeneratedVideo[];
-  finalVideoUrl?: string;
 }
 
 type CampaignAction =
   | { type: "SET_CAMPAIGN_ID"; payload: string }
   | { type: "SET_CAMPAIGN_NAME"; payload: string }
-  | { type: "ADD_PRODUCT_IMAGE"; payload: ProductImage }
-  | { type: "REMOVE_PRODUCT_IMAGE"; payload: string }
+  | { type: "SET_DESCRIPTION"; payload: string }
+  | { type: "SET_SCENES_NUMBER"; payload: number }
+  | { type: "SET_STATUS"; payload: "draft" | "in_progress" | "completed" | "failed" | "cancelled" }
+  | { type: "SET_CURRENT_STEP"; payload: number }
+  | { type: "SET_CREDITS_USED"; payload: number }
+  | { type: "SET_FINAL_URL"; payload: string }
+  | { type: "SET_SCRIPT"; payload: ScriptData }
+  | { type: "UPDATE_SCENE_DATA"; payload: { sceneNumber: number; data: Partial<SceneData> } }
+  | { type: "SET_SCENE_DATA"; payload: SceneData[] }
+  | { type: "INITIALIZE_SCENES"; payload: number }
+  | { type: "LOAD_CAMPAIGN_DATA"; payload: Campaign }
+  // Backward compatibility actions
   | { type: "SET_VIDEO_DESCRIPTION"; payload: string }
   | { type: "SET_NUMBER_OF_SCENES"; payload: number }
   | { type: "SET_CAMPAIGN_OBJECTIVE"; payload: string }
-  | { type: "SET_SELECTED_VOICE"; payload: VoiceData }
-  | { type: "SET_SCRIPT"; payload: string }
-  | { type: "SET_SCRIPT_MODE"; payload: "ai" | "manual" }
-  | {
-      type: "SET_SCRIPT_SETTINGS";
-      payload: { tone: string; length?: string; style: string };
-    }
-  | { type: "SET_SCENE_SCRIPTS"; payload: SceneScript[] }
-  | { type: "ADD_GENERATED_IMAGE"; payload: GeneratedImage }
-  | {
-      type: "UPDATE_GENERATED_IMAGE";
-      payload: { id: string; updates: Partial<GeneratedImage> };
-    }
-  | { type: "SET_SELECTED_IMAGES"; payload: string[] }
-  | { type: "ADD_VIDEO_PROMPT"; payload: VideoPrompt }
-  | {
-      type: "UPDATE_VIDEO_PROMPT";
-      payload: { id: string; updates: Partial<VideoPrompt> };
-    }
-  | { type: "ADD_GENERATED_VIDEO"; payload: GeneratedVideo }
-  | {
-      type: "UPDATE_GENERATED_VIDEO";
-      payload: { id: string; updates: Partial<GeneratedVideo> };
-    }
-  | { type: "SET_FINAL_VIDEO_URL"; payload: string }
-  | {
-      type: "UPDATE_SCENE_DATA";
-      payload: { sceneNumber: number; data: Partial<SceneData> };
-    }
-  | { type: "INITIALIZE_SCENES_DATA"; payload: number }
-  | { type: "LOAD_CAMPAIGN_DATA"; payload: Partial<CampaignState> };
+  | { type: "SET_SELECTED_VOICE"; payload: VoiceData };
 
 const initialState: CampaignState = {
   campaignName: "",
-  productImages: [],
+  description: "",
+  scenesNumber: 1,
+  status: "draft",
+  currentStep: 1,
+  creditsUsed: 0,
+  sceneData: [],
+  // Backward compatibility
   videoDescription: "",
-  numberOfScenes: 3,
+  numberOfScenes: 1,
   campaignObjective: "",
   voice: {
     voice_id: "",
@@ -134,12 +102,6 @@ const initialState: CampaignState = {
     category: "",
     preview_url: "",
   },
-  script: "",
-  scenesData: [],
-  generatedImages: [],
-  selectedImages: [],
-  videoPrompts: [],
-  generatedVideos: [],
 };
 
 function campaignReducer(
@@ -153,119 +115,80 @@ function campaignReducer(
     case "SET_CAMPAIGN_NAME":
       return { ...state, campaignName: action.payload };
 
-    case "ADD_PRODUCT_IMAGE":
-      return {
-        ...state,
-        productImages: [...state.productImages, action.payload],
-      };
+    case "SET_DESCRIPTION":
+      return { ...state, description: action.payload };
 
-    case "REMOVE_PRODUCT_IMAGE":
+    case "SET_SCENES_NUMBER":
+      return { ...state, scenesNumber: action.payload, numberOfScenes: action.payload };
+
+    case "SET_STATUS":
+      return { ...state, status: action.payload };
+
+    case "SET_CURRENT_STEP":
+      return { ...state, currentStep: action.payload };
+
+    case "SET_CREDITS_USED":
+      return { ...state, creditsUsed: action.payload };
+
+    case "SET_FINAL_URL":
+      return { ...state, finalUrl: action.payload };
+
+    case "SET_SCRIPT":
+      return { ...state, script: action.payload };
+
+    case "UPDATE_SCENE_DATA": {
+      const { sceneNumber, data } = action.payload;
       return {
         ...state,
-        productImages: state.productImages.filter(
-          (img) => img.id !== action.payload
+        sceneData: state.sceneData.map((scene) =>
+          scene.scene_number === sceneNumber ? { ...scene, ...data } : scene
         ),
       };
+    }
 
+    case "SET_SCENE_DATA":
+      return { ...state, sceneData: action.payload };
+
+    case "INITIALIZE_SCENES":
+      return {
+        ...state,
+        sceneData: Array.from({ length: action.payload }, (_, index) => ({
+          scene_number: index + 1,
+        })),
+      };
+
+    case "LOAD_CAMPAIGN_DATA": {
+      const campaign = action.payload;
+      return {
+        ...state,
+        campaignId: campaign.id,
+        campaignName: campaign.name,
+        description: campaign.description || "",
+        scenesNumber: campaign.scenes_number || 1,
+        status: campaign.status || "draft",
+        currentStep: campaign.current_step || 1,
+        creditsUsed: campaign.credits_used || 0,
+        finalUrl: campaign.final_url,
+        script: campaign.script,
+        sceneData: campaign.scene_data || [],
+        // Backward compatibility
+        videoDescription: campaign.description || "",
+        numberOfScenes: campaign.scenes_number || 1,
+      };
+    }
+
+    // Backward compatibility actions
     case "SET_VIDEO_DESCRIPTION":
-      return { ...state, videoDescription: action.payload };
+      return { ...state, videoDescription: action.payload, description: action.payload };
 
     case "SET_NUMBER_OF_SCENES":
-      return { ...state, numberOfScenes: action.payload };
+      return { ...state, numberOfScenes: action.payload, scenesNumber: action.payload };
 
     case "SET_CAMPAIGN_OBJECTIVE":
       return { ...state, campaignObjective: action.payload };
 
     case "SET_SELECTED_VOICE":
       return { ...state, voice: action.payload };
-
-    case "SET_SCRIPT":
-      return { ...state, script: action.payload };
-
-    case "SET_SCRIPT_MODE":
-      return { ...state, scriptMode: action.payload };
-
-    case "SET_SCRIPT_SETTINGS":
-      return { ...state, scriptSettings: action.payload };
-
-    case "SET_SCENE_SCRIPTS":
-      return { ...state, sceneScripts: action.payload };
-
-    case "ADD_GENERATED_IMAGE":
-      return {
-        ...state,
-        generatedImages: [...state.generatedImages, action.payload],
-      };
-
-    case "UPDATE_GENERATED_IMAGE":
-      return {
-        ...state,
-        generatedImages: state.generatedImages.map((img) =>
-          img.id === action.payload.id
-            ? { ...img, ...action.payload.updates }
-            : img
-        ),
-      };
-
-    case "SET_SELECTED_IMAGES":
-      return { ...state, selectedImages: action.payload };
-
-    case "ADD_VIDEO_PROMPT":
-      return {
-        ...state,
-        videoPrompts: [...state.videoPrompts, action.payload],
-      };
-
-    case "UPDATE_VIDEO_PROMPT":
-      return {
-        ...state,
-        videoPrompts: state.videoPrompts.map((prompt) =>
-          prompt.id === action.payload.id
-            ? { ...prompt, ...action.payload.updates }
-            : prompt
-        ),
-      };
-
-    case "ADD_GENERATED_VIDEO":
-      return {
-        ...state,
-        generatedVideos: [...state.generatedVideos, action.payload],
-      };
-
-    case "UPDATE_GENERATED_VIDEO":
-      return {
-        ...state,
-        generatedVideos: state.generatedVideos.map((video) =>
-          video.id === action.payload.id
-            ? { ...video, ...action.payload.updates }
-            : video
-        ),
-      };
-
-    case "SET_FINAL_VIDEO_URL":
-      return { ...state, finalVideoUrl: action.payload };
-
-    case "INITIALIZE_SCENES_DATA":
-      return {
-        ...state,
-        scenesData: Array.from({ length: action.payload }, (_, index) => ({
-          sceneNumber: index + 1,
-          selectedImages: [],
-        })),
-      };
-
-    case "UPDATE_SCENE_DATA": {
-      const { sceneNumber, data } = action.payload;
-      return {
-        ...state,
-        scenesData: state.scenesData.map((scene) =>
-          scene.sceneNumber === sceneNumber ? { ...scene, ...data } : scene
-        ),
-      };
-    }
-
-    case "LOAD_CAMPAIGN_DATA":
-      return { ...state, ...action.payload };
 
     default:
       return state;
@@ -293,134 +216,7 @@ export function CampaignProvider({
   // Load campaign data when provided
   useEffect(() => {
     if (campaignData) {
-      const loadedData: Partial<CampaignState> = {
-        campaignId: campaignData.id,
-        campaignName: campaignData.name || "",
-      };
-
-      // Load settings if available
-      if (campaignData.settings) {
-        const settings = campaignData.settings;
-        if (settings.videoDescription)
-          loadedData.videoDescription = settings.videoDescription;
-        if (settings.numberOfScenes)
-          loadedData.numberOfScenes = settings.numberOfScenes;
-        if (settings.campaignObjective)
-          loadedData.campaignObjective = settings.campaignObjective;
-      }
-
-      // Load step data if available
-      if (campaignData.step_data) {
-        const stepData = campaignData.step_data;
-
-        // Load basic info from step 1
-        if (stepData.step_1?.voice?.name)
-          loadedData.voice = stepData.step_1.voice;
-        if (stepData.step_1?.numberOfScenes)
-          loadedData.numberOfScenes = stepData.step_1.numberOfScenes;
-        if (stepData.step_1?.campaignObjective)
-          loadedData.campaignObjective = stepData.step_1.campaignObjective;
-
-        // Load product images from step 1 (saved during setup)
-        if (stepData.step_1?.productImages) {
-          loadedData.productImages = stepData.step_1.productImages.map(
-            (image) => ({
-              id: image.id,
-              url: image.url,
-              name: image.name,
-            })
-          );
-        }
-
-        // Load script from step 2 (matches API response structure)
-        if (stepData.step_2?.script) loadedData.script = stepData.step_2.script;
-        if (stepData.step_2?.scriptSettings)
-          loadedData.scriptSettings = stepData.step_2.scriptSettings;
-        if (stepData.step_2?.sceneScripts)
-          loadedData.sceneScripts = stepData.step_2.sceneScripts;
-
-        // Load generated images from step 3
-        if (stepData.step_3?.generatedImages)
-          loadedData.generatedImages = stepData.step_3.generatedImages;
-
-        // Load selected images from step 4
-        if (stepData.step_4?.selectedImages)
-          loadedData.selectedImages = stepData.step_4.selectedImages;
-
-        // Load video prompts from step 5
-        if (stepData.step_5?.videoPrompts)
-          loadedData.videoPrompts = stepData.step_5.videoPrompts;
-
-        // Load generated videos from step 6
-        if (stepData.step_6?.generatedVideos)
-          loadedData.generatedVideos = stepData.step_6.generatedVideos;
-
-        // Load final video URL from step 7
-        if (stepData.step_7?.finalVideoUrl)
-          loadedData.finalVideoUrl = stepData.step_7.finalVideoUrl;
-      }
-
-      // Load scenes_data from the new column if available
-      if (campaignData.scenes_data && Array.isArray(campaignData.scenes_data)) {
-        const scenesData = campaignData.scenes_data as Array<{
-          index: number;
-          script?: string;
-          image_url?: string;
-          video_url?: string;
-          audio_url?: string;
-        }>;
-
-        loadedData.scenesData = scenesData.map((scene) => ({
-          sceneNumber: scene.index,
-          selectedImages: [],
-          script: scene.script
-            ? {
-                id: `script_${scene.index}_loaded`,
-                sceneNumber: scene.index,
-                mode: "ai" as const,
-                content: scene.script,
-              }
-            : undefined,
-          generatedImage: scene.image_url
-            ? {
-                id: `image_${scene.index}_loaded`,
-                url: scene.image_url,
-                sceneNumber: scene.index,
-                prompt: "",
-                approved: false,
-              }
-            : undefined,
-          audioUrl: scene.audio_url,
-          videoUrl: scene.video_url,
-        }));
-
-        // Also populate sceneScripts for ScriptGeneration component compatibility
-        loadedData.sceneScripts = scenesData
-          .filter((scene) => scene.script)
-          .map((scene) => ({
-            id: `script_${scene.index}_loaded`,
-            sceneNumber: scene.index,
-            mode: "ai" as const,
-            content: scene.script!,
-            aiPrompt: "",
-            isGenerating: false,
-          }));
-
-        // Also add generated images to generatedImages array for backwards compatibility
-        const generatedImagesFromScenes = scenesData
-          .filter((scene) => scene.image_url)
-          .map((scene) => ({
-            id: `image_${scene.index}_loaded`,
-            url: scene.image_url!,
-            sceneNumber: scene.index,
-            prompt: "",
-            approved: false,
-          }));
-        
-        loadedData.generatedImages = [...(loadedData.generatedImages || []), ...generatedImagesFromScenes];
-      }
-
-      dispatch({ type: "LOAD_CAMPAIGN_DATA", payload: loadedData });
+      dispatch({ type: "LOAD_CAMPAIGN_DATA", payload: campaignData });
     }
   }, [campaignData]);
 

@@ -17,28 +17,64 @@ type CampaignWithBusiness = Campaign & {
 const createCampaignSchema = z.object({
   name: z.string().min(1, "Campaign name is required"),
   description: z.string().optional(),
-  campaign_type: z.enum(["video", "image", "script"]).optional(),
-  prompt: z.string().optional(),
-  settings: z.record(z.any(), z.any()).optional(),
-  estimated_credits: z.number().int().min(0).optional(),
+  scene_number: z.number().int().min(1),
 });
 
 const updateCampaignSchema = z.object({
   name: z.string().min(1).optional(),
   description: z.string().optional(),
-  campaign_type: z.enum(["video", "image", "script"]).optional(),
   status: z
     .enum(["draft", "in_progress", "completed", "failed", "cancelled"])
     .optional(),
-  prompt: z.string().optional(),
-  settings: z.record(z.any(), z.any()).optional(),
   output_urls: z.array(z.string()).optional(),
-  thumbnail_url: z.string().optional(),
   credits_used: z.number().int().min(0).optional(),
-  estimated_credits: z.number().int().min(0).optional(),
   metadata: z.record(z.any(), z.any()).optional(),
-  current_step: z.number().int().min(1).max(7).optional(),
-  step_data: z.record(z.any(), z.any()).optional(),
+  script: z.string().optional(),
+  //   - scene_number
+  //   - scene_script
+  //   - audio {
+  //     previewUrl,
+  //     id,
+  //     metadata
+  //   }
+  //   - image {
+  //     name,
+  //     url,
+  //     isProcessing
+  //   }
+  //  - video {
+  //     prompt,
+  //     url,
+  //     isProcessing
+  scene_data: z
+    .array(
+      z.object({
+        scene_number: z.number().int().min(1),
+        scene_script: z.string().optional(),
+        audio: z
+          .object({
+            previewUrl: z.string().optional(),
+            id: z.string().optional(),
+            metadata: z.record(z.string(), z.any()).optional(),
+          })
+          .optional(),
+        image: z
+          .object({
+            name: z.string().optional(),
+            url: z.string().optional(),
+            isProcessing: z.boolean().optional(),
+          })
+          .optional(),
+        video: z
+          .object({
+            prompt: z.string().optional(),
+            url: z.string().optional(),
+            isProcessing: z.boolean().optional(),
+          })
+          .optional(),
+      })
+    )
+    .optional(),
 });
 
 const saveCampaignSettingsSchema = z.object({
@@ -301,7 +337,6 @@ export class CampaignController {
             status: updateData.status,
             credits_used: updateData.credits_used || null,
             output_urls: updateData.output_urls || null,
-            thumbnail_url: updateData.thumbnail_url || null,
             updated_at: new Date().toISOString(),
           })
           .eq("id", id)
@@ -321,7 +356,6 @@ export class CampaignController {
         delete otherUpdates.status;
         delete otherUpdates.credits_used;
         delete otherUpdates.output_urls;
-        delete otherUpdates.thumbnail_url;
 
         // Update any remaining fields
         if (Object.keys(otherUpdates).length > 0) {
@@ -466,7 +500,7 @@ export class CampaignController {
       // Get campaign statistics
       const { data: stats, error } = await supabaseAdmin
         .from("campaigns")
-        .select("status, campaign_type, credits_used")
+        .select("status, credits_used")
         .eq("user_id", userId);
 
       if (error) {
@@ -492,19 +526,12 @@ export class CampaignController {
           return acc;
         }, {} as Record<string, number>) || {};
 
-      const typeCounts =
-        stats?.reduce((acc, campaign) => {
-          acc[campaign.campaign_type] = (acc[campaign.campaign_type] || 0) + 1;
-          return acc;
-        }, {} as Record<string, number>) || {};
-
       return res.json({
         success: true,
         data: {
           totalCampaigns,
           totalCreditsUsed,
           statusCounts,
-          typeCounts,
           completionRate:
             totalCampaigns > 0
               ? (

@@ -3,7 +3,6 @@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Checkbox } from "@/components/ui/checkbox";
 import { useCampaign } from "@/contexts/CampaignContext";
 import { Clock, GripVertical, Play, RefreshCw } from "lucide-react";
 import Image from "next/image";
@@ -15,6 +14,9 @@ import {
   DropResult,
 } from "react-beautiful-dnd";
 import toast from "react-hot-toast";
+import { AssetLibraryModal } from "@/components/ui/asset-library-modal";
+import { AssetFile } from "@/types/api";
+import { api } from "@/lib/api";
 
 interface ImageSelectionProps {
   onNext: () => void;
@@ -29,47 +31,53 @@ export function ImageSelection({ onNext, onPrev }: ImageSelectionProps) {
     state.selectedImages
   );
   const [orderedImages, setOrderedImages] = useState<string[]>([]);
+  const [assetLibraryOpen, setAssetLibraryOpen] = useState(false);
+  const [regeneratingImageId, setRegeneratingImageId] = useState<string | null>(
+    null
+  );
 
   const approvedImages = state.generatedImages.filter((img) => img.approved);
 
   useEffect(() => {
-    // Initialize with previously selected images or all approved images
+    // Initialize with previously selected images only
     if (state.selectedImages.length > 0) {
       setSelectedImageIds(state.selectedImages);
       setOrderedImages(state.selectedImages);
     } else {
-      const allApprovedIds = approvedImages.map((img) => img.id);
-      setSelectedImageIds(allApprovedIds);
-      setOrderedImages(allApprovedIds);
+      // Don't auto-select all images - let user choose
+      setSelectedImageIds([]);
+      setOrderedImages([]);
     }
-  }, [approvedImages]);
+  }, [approvedImages, state.selectedImages]);
 
-  const handleImageToggle = (imageId: string, checked: boolean) => {
-    if (checked) {
-      // Only add if not already selected
-      if (!selectedImageIds.includes(imageId)) {
-        const newSelected = [...selectedImageIds, imageId];
-        setSelectedImageIds(newSelected);
-        setOrderedImages((prev) => [...prev, imageId]);
+  // Load selected images from backend on component mount
+  useEffect(() => {
+    const loadSelectedImages = async () => {
+      if (!state.campaignId) return;
+
+      try {
+        const response = await api.getCampaign(state.campaignId);
+        if (
+          response.success &&
+          response.data?.step_data?.step_4?.selectedImages
+        ) {
+          const savedSelectedImages =
+            response.data.step_data.step_4.selectedImages;
+          setSelectedImageIds(savedSelectedImages);
+          setOrderedImages(savedSelectedImages);
+          // Also update context to match backend
+          dispatch({
+            type: "SET_SELECTED_IMAGES",
+            payload: savedSelectedImages,
+          });
+        }
+      } catch (error) {
+        console.error("Failed to load selected images:", error);
       }
-    } else {
-      // Remove from both selected and ordered arrays
-      const newSelected = selectedImageIds.filter((id) => id !== imageId);
-      setSelectedImageIds(newSelected);
-      setOrderedImages((prev) => prev.filter((id) => id !== imageId));
-    }
-  };
+    };
 
-  const handleSelectAll = () => {
-    const allIds = approvedImages.map((img) => img.id);
-    setSelectedImageIds(allIds);
-    setOrderedImages(allIds);
-  };
-
-  const handleDeselectAll = () => {
-    setSelectedImageIds([]);
-    setOrderedImages([]);
-  };
+    loadSelectedImages();
+  }, [state.campaignId, dispatch]);
 
   const handleDragEnd = (result: DropResult) => {
     if (!result.destination) return;
@@ -85,19 +93,91 @@ export function ImageSelection({ onNext, onPrev }: ImageSelectionProps) {
     return selectedImageIds.length * 3; // 3 seconds per image
   };
 
-  const handleNext = () => {
+  const handleNext = async () => {
     if (selectedImageIds.length === 0) {
       toast.error("Please select at least one image");
       return;
     }
 
-    dispatch({ type: "SET_SELECTED_IMAGES", payload: orderedImages });
-    onNext();
+    try {
+      // Save selected images to backend to prevent duplicates
+      if (state.campaignId) {
+        await api.saveCampaignStepData(state.campaignId, 4, {
+          selectedImages: orderedImages,
+        });
+      }
+
+      dispatch({ type: "SET_SELECTED_IMAGES", payload: orderedImages });
+      toast.success("Image selection saved successfully");
+      onNext();
+    } catch (error) {
+      console.error("Failed to save image selection:", error);
+      toast.error("Failed to save selection. Please try again.");
+    }
   };
 
-  const regenerateImage = async (imageId: string) => {
-    // This would trigger image regeneration
-    toast.success("Image regeneration started");
+  const regenerateImage = (imageId: string) => {
+    setRegeneratingImageId(imageId);
+    setAssetLibraryOpen(true);
+  };
+
+  const handleAssetLibrarySelect = async (assets: AssetFile[]) => {
+    if (assets.length === 0 || !regeneratingImageId) return;
+
+    const selectedAsset = assets[0];
+    const oldImage = approvedImages.find(
+      (img) => img.id === regeneratingImageId
+    );
+    if (!oldImage) return;
+
+    try {
+      // Create new generated image with same scene number but new asset
+      const newGeneratedImage = {
+        id: selectedAsset.id,
+        url: selectedAsset.storage_url,
+        sceneNumber: oldImage.sceneNumber,
+        prompt: selectedAsset.alt_text || `Scene ${oldImage.sceneNumber} image`,
+        approved: true,
+      };
+
+      // Remove the old image and add the new one
+      const updatedGeneratedImages = state.generatedImages.filter(
+        (img) => img.id !== regeneratingImageId
+      );
+      updatedGeneratedImages.push(newGeneratedImage);
+
+      // Update the generated images in context
+      dispatch({
+        type: "SET_GENERATED_IMAGES",
+        payload: updatedGeneratedImages,
+      });
+
+      // Update selected and ordered arrays if this image was selected
+      if (selectedImageIds.includes(regeneratingImageId)) {
+        const newSelectedIds = selectedImageIds.map((id) =>
+          id === regeneratingImageId ? selectedAsset.id : id
+        );
+        const newOrderedIds = orderedImages.map((id) =>
+          id === regeneratingImageId ? selectedAsset.id : id
+        );
+        setSelectedImageIds(newSelectedIds);
+        setOrderedImages(newOrderedIds);
+      }
+
+      // Save to backend
+      if (state.campaignId) {
+        await api.saveCampaignStepData(state.campaignId, 3, {
+          generatedImages: updatedGeneratedImages,
+        });
+      }
+
+      toast.success(`Image updated for Scene ${oldImage.sceneNumber}`);
+    } catch (error) {
+      console.error("Failed to update image:", error);
+      toast.error("Failed to update image. Please try again.");
+    } finally {
+      setRegeneratingImageId(null);
+    }
   };
 
   return (
@@ -119,35 +199,67 @@ export function ImageSelection({ onNext, onPrev }: ImageSelectionProps) {
             <CardHeader>
               <div className="flex items-center justify-between">
                 <CardTitle>Available Images</CardTitle>
-                <div className="flex space-x-2">
-                  <Button variant="outline" size="sm" onClick={handleSelectAll}>
-                    Select All
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={handleDeselectAll}
-                  >
-                    Deselect All
-                  </Button>
+                <div className="flex items-center space-x-4">
+                  <div className="flex space-x-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        const allIds = approvedImages.map((img) => img.id);
+                        setSelectedImageIds(allIds);
+                        setOrderedImages(allIds);
+                      }}
+                    >
+                      Select All
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setSelectedImageIds([]);
+                        setOrderedImages([]);
+                      }}
+                    >
+                      Deselect All
+                    </Button>
+                  </div>
+                  <p className="text-sm text-muted-foreground">
+                    {selectedImageIds.length} of {approvedImages.length} images
+                    selected
+                  </p>
                 </div>
               </div>
-              <p className="text-sm text-muted-foreground">
-                {selectedImageIds.length} of {approvedImages.length} images
-                selected
-              </p>
             </CardHeader>
             <CardContent>
               <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                {approvedImages.map((image) => (
-                  <div key={image.id} className="space-y-3">
+                {approvedImages.map((image, index) => (
+                  <div key={`${image.id}-${index}`} className="space-y-3">
                     <div className="relative">
                       <div
-                        className={`relative aspect-square rounded-lg overflow-hidden border-2 transition-colors ${
+                        className={`relative aspect-square rounded-lg overflow-hidden border-2 transition-colors cursor-pointer hover:border-primary/50 ${
                           selectedImageIds.includes(image.id)
                             ? "border-primary"
                             : "border-muted"
                         }`}
+                        onClick={() => {
+                          if (selectedImageIds.includes(image.id)) {
+                            // Remove from selection
+                            const newSelected = selectedImageIds.filter(
+                              (id) => id !== image.id
+                            );
+                            const newOrdered = orderedImages.filter(
+                              (id) => id !== image.id
+                            );
+                            setSelectedImageIds(newSelected);
+                            setOrderedImages(newOrdered);
+                          } else {
+                            // Add to selection
+                            const newSelected = [...selectedImageIds, image.id];
+                            const newOrdered = [...orderedImages, image.id];
+                            setSelectedImageIds(newSelected);
+                            setOrderedImages(newOrdered);
+                          }
+                        }}
                       >
                         <img
                           src={image.url}
@@ -162,16 +274,24 @@ export function ImageSelection({ onNext, onPrev }: ImageSelectionProps) {
                           </Badge>
                         </div>
 
-                        {/* Selection checkbox */}
-                        <div className="absolute top-2 right-2">
-                          <Checkbox
-                            checked={selectedImageIds.includes(image.id)}
-                            onCheckedChange={(checked) =>
-                              handleImageToggle(image.id, checked === true)
-                            }
-                            className="bg-white"
-                          />
-                        </div>
+                        {/* Selection checkmark */}
+                        {selectedImageIds.includes(image.id) && (
+                          <div className="absolute top-2 right-2">
+                            <div className="w-6 h-6 bg-primary text-primary-foreground rounded-full flex items-center justify-center">
+                              <svg
+                                className="w-4 h-4"
+                                fill="currentColor"
+                                viewBox="0 0 20 20"
+                              >
+                                <path
+                                  fillRule="evenodd"
+                                  d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                                  clipRule="evenodd"
+                                />
+                              </svg>
+                            </div>
+                          </div>
+                        )}
 
                         {/* Order number */}
                         {selectedImageIds.includes(image.id) && (
@@ -353,6 +473,21 @@ export function ImageSelection({ onNext, onPrev }: ImageSelectionProps) {
           Next: Create Video Prompts ({selectedImageIds.length} selected)
         </Button>
       </div>
+
+      {/* Asset Library Modal for Regenerating Images */}
+      <AssetLibraryModal
+        isOpen={assetLibraryOpen}
+        onClose={() => {
+          setAssetLibraryOpen(false);
+          setRegeneratingImageId(null);
+        }}
+        onSelectAssets={handleAssetLibrarySelect}
+        multiSelect={false}
+        title={regeneratingImageId ? `Replace Image for Scene` : "Select Image"}
+        description="Choose a different image from your asset library, upload a new one, or generate with AI"
+        acceptedFileTypes={["image/*"]}
+        maxFileSize={10 * 1024 * 1024}
+      />
     </div>
   );
 }

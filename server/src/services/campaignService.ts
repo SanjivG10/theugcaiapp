@@ -19,9 +19,9 @@ export interface CreateCampaignData {
   description?: string;
   campaign_type?: "video" | "image" | "script";
   prompt?: string;
-  settings?: Json;
   business_id: string;
   user_id: string;
+  scene_number: number;
 }
 
 export interface ProcessCampaignData {
@@ -38,25 +38,16 @@ export class CampaignService {
    */
   static async createCampaign(data: CreateCampaignData): Promise<Campaign> {
     try {
-      // For initial creation, we don't estimate credits yet since campaign_type might not be set
-      const estimatedCredits = data.campaign_type
-        ? this.estimateCredits(data.campaign_type, data.settings)
-        : 0;
-
       // Create campaign without credit checks for initial draft
       const insertData: CampaignInsert = {
         name: data.name,
         description: data.description,
-        campaign_type: data.campaign_type || undefined,
-        prompt: data.prompt || undefined,
-        settings: data.settings || {},
+        scene_number: data.scene_number,
         business_id: data.business_id,
         user_id: data.user_id,
-        estimated_credits: estimatedCredits,
         current_step: 1,
-        total_steps: 4,
-        step_data: {},
-        metadata: {},
+        status: "draft",
+        credits_used: 0,
       };
 
       const { data: campaign, error: campaignError } = await supabaseAdmin
@@ -140,13 +131,7 @@ export class CampaignService {
     data: ProcessCampaignData
   ): Promise<{ success: boolean; message: string }> {
     try {
-      const {
-        campaign_id,
-        output_urls,
-        thumbnail_url,
-        actual_credits_used,
-        metadata,
-      } = data;
+      const { campaign_id, output_urls, actual_credits_used, metadata } = data;
 
       // Get campaign details
       const { data: campaign, error: campaignError } = await supabaseAdmin
@@ -191,13 +176,8 @@ export class CampaignService {
         }
       }
 
-      // Update campaign status and output
       const updateData: CampaignUpdate = {
         status: "completed",
-        credits_used: actual_credits_used || campaign.credits_used,
-        output_urls: output_urls || undefined,
-        thumbnail_url: thumbnail_url || undefined,
-        completed_at: new Date().toISOString(),
       };
 
       const { error: updateError } = await supabaseAdmin

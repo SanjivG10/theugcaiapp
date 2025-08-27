@@ -1,0 +1,58 @@
+We need to redo the campaign. 
+
+Make sure we always sync the campaign table with frontend (so might have to make some changes to campaign context). 
+
+Remove product image selection from campaign setup as we will do this on third step. 
+
+The number of steps is big and redundant.
+
+Let's have
+ 
+
+1. Campaign setup 
+2. Script Generation
+3. Assets Setup (image selection + generation + everything happens here, combine them for existing flow)
+4. Video Prompts + video Generation (redo this component, combine them)
+5. Final Assembly + Edit (redo this)
+6. Preview + Export (create this)
+
+When we first create the campaign, we should ask the user for name, description and number of scenes (at max 5). On campaign setup, right now we are allowing user to change that number of scenes, let's not do that, let us only allow user to select number of scenes (default to one) from the modal. 
+
+- id
+- business_id
+- user_id
+- name
+- description
+- status
+- scenes_number 
+- credits_used
+- current_step
+- created_at
+- updated_at
+- final_url
+- script {
+    tone, 
+    style, 
+    prompt
+}
+- scene_data
+  this array of objects (array length is the scenes_number) should have following information (each)
+  - scene_number
+  - scene_script 
+  - audio {
+    previewUrl,
+    id, 
+    metadata
+  }
+  - image {
+    name,
+    url,
+    isProcessing
+  }
+ - video {
+    prompt,
+    url,
+    isProcessing
+ }
+
+- Make necessary changes for the campaign types in frontend (table for campaign is already created). Let us keep consistency with backend campaign type and frontend and mouunt he campaign data accordingly in the context. 

@@ -4,31 +4,12 @@ import React, { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Textarea } from "@/components/ui/textarea";
-import { Input } from "@/components/ui/input";
-import {
-  GeneratedImage,
-  ProductImage,
-  useCampaign,
-} from "@/contexts/CampaignContext";
-import {
-  Check,
-  Image as ImageIcon,
-  Loader2,
-  RefreshCw,
-  Wand2,
-  Edit3,
-  AlertTriangle,
-  Upload,
-  X,
-  Plus,
-} from "lucide-react";
-import { CreditDisplay } from "@/components/ui/credit-display";
-import { CreditPurchaseModal } from "@/components/ui/credit-purchase-modal";
-import Image from "next/image";
+import { AssetLibraryModal } from "@/components/ui/asset-library-modal";
+import { useCampaign } from "@/contexts/CampaignContext";
+import { Check, Image as ImageIcon, FolderOpen, Edit3 } from "lucide-react";
+import { AssetFile } from "@/types/api";
 import toast from "react-hot-toast";
 import { api } from "@/lib/api";
-import { CREDIT_COSTS } from "@/constants/credits";
 
 interface ImageGenerationProps {
   onNext: () => void;
@@ -37,12 +18,11 @@ interface ImageGenerationProps {
   canGoPrev: boolean;
 }
 
-interface SceneImageGeneration {
+interface SceneImageData {
   sceneNumber: number;
   scriptText: string;
-  selectedProductImages: string[];
-  imagePrompt: string;
-  isGenerating: boolean;
+  selectedImageId?: string;
+  selectedImage?: AssetFile;
 }
 
 interface EditableScript {
@@ -59,103 +39,118 @@ export function ImageGeneration({ onNext, onPrev }: ImageGenerationProps) {
     [sceneNumber: number]: boolean;
   }>({});
 
-  // State for product image upload
-  const [isUploadingImage, setIsUploadingImage] = useState(false);
+  // Asset library modal state
+  const [assetLibraryOpen, setAssetLibraryOpen] = useState(false);
+  const [currentScene, setCurrentScene] = useState<number>(1);
 
-  // Credit system states
-  const [currentCredits, setCurrentCredits] = useState(0);
-  const [subscriptionPlan, setSubscriptionPlan] = useState("free");
-  const [showCreditModal, setShowCreditModal] = useState(false);
-
-  // Fetch current credits on component mount
-  React.useEffect(() => {
-    const fetchCredits = async () => {
-      try {
-        const response = await api.getCredits();
-        if (response.success) {
-          setCurrentCredits(response.data?.credits || 0);
-          setSubscriptionPlan(response.data?.subscription_plan || "free");
-        }
-      } catch (error) {
-        console.error("Failed to fetch credits:", error);
-      }
-    };
-    fetchCredits();
-  }, []);
-
-  // Initialize scene generation data
+  // Initialize scene data
   const scriptParagraphs = state.script.split("\n").filter((p) => p.trim());
-  const [sceneGenerations, setSceneGenerations] = useState<
-    SceneImageGeneration[]
-  >(() => {
+  const [sceneData, setSceneData] = useState<SceneImageData[]>(() => {
     return Array.from({ length: totalScenes }, (_, index) => ({
       sceneNumber: index + 1,
       scriptText: scriptParagraphs[index] || "",
-      selectedProductImages: [],
-      imagePrompt: "",
-      isGenerating: false,
+      selectedImageId: undefined,
+      selectedImage: undefined,
     }));
   });
 
   React.useEffect(() => {
     if (state.numberOfScenes) {
-      setSceneGenerations(
+      setSceneData(
         Array.from({ length: state.numberOfScenes }, (_, index) => ({
           sceneNumber: index + 1,
           scriptText: scriptParagraphs[index] || "",
-          selectedProductImages: [],
-          imagePrompt: "",
-          isGenerating: false,
+          selectedImageId: undefined,
+          selectedImage: undefined,
         }))
       );
     }
   }, [state.numberOfScenes]);
 
-  // Handle product image upload
-  const handleProductImageUpload = async (
-    event: React.ChangeEvent<HTMLInputElement>
-  ) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
+  // Load existing scene images from backend
+  React.useEffect(() => {
+    const loadSceneImages = async () => {
+      if (!state.campaignId) return;
 
-    // Validate file type
-    if (!file.type.startsWith("image/")) {
-      toast.error("Please select an image file");
-      return;
-    }
+      try {
+        const response = await api.getCampaign(state.campaignId);
+        if (
+          response.success &&
+          response.data?.step_data?.step_3?.generatedImages
+        ) {
+          const savedImages = response.data.step_data.step_3.generatedImages;
 
-    // Validate file size (max 5MB)
-    if (file.size > 5 * 1024 * 1024) {
-      toast.error("Image size must be less than 5MB");
-      return;
-    }
+          // Update scene data with saved images
+          setSceneData((prev) =>
+            prev.map((scene) => {
+              const savedImage = savedImages.find(
+                (img) => img.sceneNumber === scene.sceneNumber
+              );
+              if (savedImage) {
+                // Convert GeneratedImage back to AssetFile format for compatibility
+                const assetFile: AssetFile = {
+                  id: savedImage.id,
+                  user_id: "",
+                  business_id: "",
+                  folder_id: undefined,
+                  name: `Scene ${savedImage.sceneNumber} Image`,
+                  original_name: `scene_${savedImage.sceneNumber}_image`,
+                  file_type: "image",
+                  file_size: 0,
+                  storage_url: savedImage.url,
+                  storage_path: "",
+                  thumbnail_url: savedImage.url,
+                  is_generated: true,
+                  alt_text: savedImage.prompt,
+                  tags: [],
+                  metadata: {},
+                  created_at: new Date().toISOString(),
+                  updated_at: new Date().toISOString(),
+                  download_count: 0,
+                };
+                return {
+                  ...scene,
+                  selectedImageId: savedImage.id,
+                  selectedImage: assetFile,
+                };
+              }
+              return scene;
+            })
+          );
+        }
+      } catch (error) {
+        console.error("Failed to load scene images:", error);
+      }
+    };
 
-    setIsUploadingImage(true);
+    loadSceneImages();
+  }, [state.campaignId]);
 
-    try {
-      // Create image URL for preview
-      const imageUrl = URL.createObjectURL(file);
+  // Handle scene image selection from asset library
+  const handleSceneImageSelect = (sceneNumber: number) => {
+    setCurrentScene(sceneNumber);
+    setAssetLibraryOpen(true);
+  };
 
-      // Create new product image
-      const newProductImage: ProductImage = {
-        id: Math.random().toString(36).substring(2, 9),
-        file,
-        url: imageUrl,
-        name: file.name,
-      };
+  const handleAssetLibrarySelect = (assets: AssetFile[]) => {
+    if (assets.length === 0) return;
 
-      // Add to campaign context
-      dispatch({ type: "ADD_PRODUCT_IMAGE", payload: newProductImage });
+    const selectedAsset = assets[0]; // Single selection
 
-      toast.success("Product image uploaded successfully!");
-    } catch (error) {
-      console.error("Failed to upload image:", error);
-      toast.error("Failed to upload image");
-    } finally {
-      setIsUploadingImage(false);
-      // Reset input
-      event.target.value = "";
-    }
+    // Update scene data
+    setSceneData((prev) =>
+      prev.map((scene) =>
+        scene.sceneNumber === currentScene
+          ? {
+              ...scene,
+              selectedImageId: selectedAsset.id,
+              selectedImage: selectedAsset,
+            }
+          : scene
+      )
+    );
+
+    toast.success(`Image selected for Scene ${currentScene}`);
   };
 
   // Handle script editing
@@ -173,13 +168,17 @@ export function ImageGeneration({ onNext, onPrev }: ImageGenerationProps) {
     }));
   };
 
-  const saveScriptChanges = async (sceneNumber: number) => {
+  const saveScriptChanges = (sceneNumber: number) => {
     const newText = editableScript[sceneNumber] || "";
 
-    // Update scene generation
-    updateSceneGeneration(sceneNumber, {
-      scriptText: newText,
-    });
+    // Update scene data
+    setSceneData((prev) =>
+      prev.map((scene) =>
+        scene.sceneNumber === sceneNumber
+          ? { ...scene, scriptText: newText }
+          : scene
+      )
+    );
 
     // Update the campaign script
     const updatedScriptParagraphs = [...scriptParagraphs];
@@ -189,23 +188,7 @@ export function ImageGeneration({ onNext, onPrev }: ImageGenerationProps) {
     // Update campaign context
     dispatch({ type: "SET_SCRIPT", payload: updatedScript });
 
-    // Save to backend if we have campaign ID
-    if (state.campaignId) {
-      try {
-        const stepData = {
-          script: updatedScript,
-          scriptMode: state.scriptMode || "ai",
-          scriptSettings: state.scriptSettings,
-        };
-
-        await api.saveCampaignStepData(state.campaignId, 2, stepData);
-        toast.success("Script updated successfully");
-      } catch (error) {
-        console.error("Failed to save script:", error);
-        toast.error("Failed to save script changes");
-        return;
-      }
-    }
+    toast.success("Script updated successfully");
 
     // Exit edit mode
     setScriptEditMode((prev) => ({
@@ -228,441 +211,304 @@ export function ImageGeneration({ onNext, onPrev }: ImageGenerationProps) {
     }));
   };
 
-  const updateSceneGeneration = (
-    sceneNumber: number,
-    updates: Partial<SceneImageGeneration>
-  ) => {
-    setSceneGenerations((prev) =>
-      prev.map((scene) =>
-        scene.sceneNumber === sceneNumber ? { ...scene, ...updates } : scene
-      )
-    );
-  };
-
-  const toggleProductImage = (sceneNumber: number, imageId: string) => {
-    const scene = sceneGenerations.find((s) => s.sceneNumber === sceneNumber);
-    if (!scene) return;
-
-    const isSelected = scene.selectedProductImages.includes(imageId);
-    let newSelectedImages: string[];
-
-    if (isSelected) {
-      // Remove image if already selected
-      newSelectedImages = scene.selectedProductImages.filter(
-        (id) => id !== imageId
-      );
-    } else {
-      // Add image if not selected
-      newSelectedImages = [...scene.selectedProductImages, imageId];
-    }
-
-    updateSceneGeneration(sceneNumber, {
-      selectedProductImages: newSelectedImages,
-    });
-  };
-
-  const generateImage = async (sceneNumber: number) => {
-    const scene = sceneGenerations.find((s) => s.sceneNumber === sceneNumber);
-    if (!scene || scene.selectedProductImages.length === 0) {
-      toast.error("Please select at least one product image for this scene");
-      return;
-    }
-
-    // Check credits before generating
-    try {
-      const creditCheckResponse = await api.checkCredits({
-        action: "IMAGE_GENERATION",
-      });
-
-      if (!creditCheckResponse.data?.can_proceed) {
-        setShowCreditModal(true);
-        return;
-      }
-    } catch (error) {
-      console.error("Failed to check credits:", error);
-      toast.error("Failed to check credits");
-      return;
-    }
-
-    updateSceneGeneration(sceneNumber, { isGenerating: true });
-
-    try {
-      // Call the image generation API
-      const imageUrls = state.productImages
-        .filter((image) => scene.selectedProductImages.includes(image.id))
-        .map((image) => image.url);
-      const response = await api.generateImage({
-        campaignId: state.campaignId as string,
-        sceneNumber,
-        scriptText: scene.scriptText,
-        imageUrls,
-        imageDescription: scene.imagePrompt,
-      });
-
-      if (response.success && response.data) {
-        // Create generated image from API response
-        const generatedImage: GeneratedImage = {
-          id: response.data.id,
-          url: response.data.url,
-          sceneNumber,
-          prompt: response.data.prompt,
-          approved: false,
-        };
-
-        dispatch({ type: "ADD_GENERATED_IMAGE", payload: generatedImage });
-
-        // Credits are consumed by the API endpoint
-        setCurrentCredits((prev) => prev - CREDIT_COSTS.IMAGE_GENERATION); // Update local state (2 credits for image generation)
-
-        toast.success(`Scene ${sceneNumber} image generated successfully!`);
-      } else {
-        throw new Error(response.message || "Failed to generate image");
-      }
-    } catch (error) {
-      console.error("Failed to generate image:", error);
-      toast.error("Failed to generate image. Please try again.");
-    } finally {
-      updateSceneGeneration(sceneNumber, { isGenerating: false });
-    }
-  };
-
-  const approveImage = (imageId: string) => {
-    dispatch({
-      type: "UPDATE_GENERATED_IMAGE",
-      payload: { id: imageId, updates: { approved: true } },
-    });
-    toast.success("Image approved!");
-  };
-
-  const regenerateImage = async (imageId: string) => {
-    const image = state.generatedImages.find((img) => img.id === imageId);
-    if (!image) return;
-    await generateImage(image.sceneNumber);
-  };
-
-  const approvedImages = state.generatedImages.filter((img) => img.approved);
-  const canProceed = approvedImages.length >= totalScenes;
+  // Check if all scenes have images selected
+  const scenesWithImages = sceneData.filter((scene) => scene.selectedImage);
+  const canProceed = scenesWithImages.length >= totalScenes;
 
   const handleNext = async () => {
     if (!canProceed) {
       toast.error(
-        `Please generate and approve at least ${Math.min(
-          totalScenes
-        )} images to continue`
+        `Please select images for all ${totalScenes} scenes to continue`
       );
       return;
     }
 
-    // Save image generation data if we have a campaign ID
-    if (state.campaignId) {
-      try {
-        const stepData = {
-          generatedImages: state.generatedImages,
-          sceneGenerations,
-        };
-
-        await api.saveCampaignStepData(state.campaignId, 3, stepData);
-        toast.success("Images saved");
-      } catch (error) {
-        console.error("Failed to save images:", error);
-        toast.error("Failed to save images");
-        return;
-      }
+    if (!state.campaignId) {
+      toast.error("Campaign ID not found");
+      return;
     }
 
-    onNext();
+    try {
+      const generatedImages = sceneData
+        .filter((scene) => scene.selectedImage)
+        .map((scene) => ({
+          id: scene.selectedImage!.id,
+          url: scene.selectedImage!.storage_url,
+          sceneNumber: scene.sceneNumber,
+          prompt:
+            scene.selectedImage!.alt_text || `Scene ${scene.sceneNumber} image`,
+          approved: true, // Auto-approve selected images
+        }));
+
+      // Save to backend via step data
+      await api.saveCampaignStepData(state.campaignId, 3, {
+        generatedImages,
+      });
+
+      // Add selected images to context for compatibility with other components
+      generatedImages.forEach((generatedImage) => {
+        dispatch({ type: "ADD_GENERATED_IMAGE", payload: generatedImage });
+      });
+
+      toast.success("Scene images saved successfully");
+      onNext();
+    } catch (error) {
+      console.error("Failed to save scene images:", error);
+      toast.error("Failed to save scene images. Please try again.");
+    }
   };
 
   return (
     <div className="space-y-8">
-      {/* Scene Generation Cards */}
+      <div className="space-y-4">
+        <div>
+          <h2 className="text-xl font-semibold text-foreground mb-2">
+            Scene Image Selection
+          </h2>
+          <p className="text-muted-foreground text-sm">
+            Select an image for each scene from your asset library. You can
+            browse existing images, upload new ones, or generate AI images.
+          </p>
+        </div>
+
+        {/* Recommendation Card */}
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+          <div className="flex items-start space-x-3">
+            <div className="w-6 h-6 bg-blue-600 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+              <svg
+                className="w-4 h-4 text-white"
+                fill="currentColor"
+                viewBox="0 0 20 20"
+              >
+                <path
+                  fillRule="evenodd"
+                  d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z"
+                  clipRule="evenodd"
+                />
+              </svg>
+            </div>
+            <div>
+              <h3 className="font-medium text-blue-900 mb-1">
+                💡 Recommendation
+              </h3>
+              <p className="text-blue-800 text-sm">
+                For best results, we recommend editing custom images for each
+                scene using AI from existing product. Click &quot;Select from
+                Asset Library&quot; → &quot;Select an image&quot; tab, and
+                describe exactly what you want for each scene. This ensures your
+                images perfectly match your script and campaign goals.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Scene Cards */}
       <div className="grid gap-6">
-        {sceneGenerations.map((scene) => {
-          const existingImage = state.generatedImages.find(
-            (img) => img.sceneNumber === scene.sceneNumber
-          );
-          const isGenerating = scene.isGenerating;
-
-          return (
-            <Card key={scene.sceneNumber} className="overflow-hidden">
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <CardTitle className="flex items-center space-x-2">
-                    <Badge variant="outline">Scene {scene.sceneNumber}</Badge>
-                    <span className="text-base">
-                      Scene {scene.sceneNumber} Image Generation
-                    </span>
-                  </CardTitle>
-                  {existingImage?.approved && (
-                    <div className="flex items-center space-x-1 text-green-600">
-                      <Check className="w-4 h-4" />
-                      <span className="text-sm font-medium">Approved</span>
-                    </div>
-                  )}
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                  {/* Left: Script and Settings */}
-                  <div className="space-y-4">
-                    <div>
-                      <div className="flex items-center justify-between mb-2">
-                        <label className="text-sm font-medium">
-                          Script for this scene:
-                        </label>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => toggleScriptEdit(scene.sceneNumber)}
-                        >
-                          <Edit3 className="w-3 h-3 mr-1" />
-                          {scriptEditMode[scene.sceneNumber]
-                            ? "Cancel"
-                            : "Edit"}
-                        </Button>
-                      </div>
-                      {scriptEditMode[scene.sceneNumber] ? (
-                        <div className="space-y-2">
-                          <Textarea
-                            value={editableScript[scene.sceneNumber] || ""}
-                            onChange={(e) =>
-                              updateScriptText(
-                                scene.sceneNumber,
-                                e.target.value
-                              )
-                            }
-                            className="min-h-[80px]"
-                            placeholder="Enter script for this scene..."
-                          />
-                          <div className="flex space-x-2">
-                            <Button
-                              size="sm"
-                              onClick={() =>
-                                saveScriptChanges(scene.sceneNumber)
-                              }
-                              className="flex-1"
-                            >
-                              <Check className="w-3 h-3 mr-1" />
-                              Save Changes
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() =>
-                                cancelScriptEdit(scene.sceneNumber)
-                              }
-                            >
-                              Cancel
-                            </Button>
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="p-3 bg-muted rounded-lg text-sm min-h-[60px] flex items-center">
-                          {scene.scriptText ||
-                            "No script content for this scene"}
-                        </div>
-                      )}
-                    </div>
-
-                    <div>
-                      <label className="text-sm font-medium mb-2 block">
-                        Product Image: <span className="text-red-500">*</span>
+        {sceneData.map((scene, index) => (
+          <Card
+            key={`${scene.sceneNumber}-${index}`}
+            className="overflow-hidden"
+          >
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <CardTitle className="flex items-center space-x-2">
+                  <Badge variant="outline">Scene {scene.sceneNumber}</Badge>
+                  <span className="text-base">Scene {scene.sceneNumber}</span>
+                </CardTitle>
+                {scene.selectedImage && (
+                  <div className="flex items-center space-x-1 text-green-600">
+                    <Check className="w-4 h-4" />
+                    <span className="text-sm font-medium">Image Selected</span>
+                  </div>
+                )}
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* Left: Script */}
+                <div className="space-y-4">
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <label className="text-sm font-medium">
+                        Script for this scene:
                       </label>
-
-                      {/* Required image selection notice */}
-                      {scene.selectedProductImages.length === 0 && (
-                        <div className="mb-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                          <div className="flex items-start space-x-2">
-                            <AlertTriangle className="w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0" />
-                            <div className="text-sm">
-                              <p className="font-medium text-blue-800 mb-1">
-                                Product Image Required
-                              </p>
-                              <p className="text-blue-700">
-                                You must select at least one product image for
-                                this scene. The AI will use your selected
-                                image(s) as a base to create the generated scene
-                                image with your description.
-                              </p>
-                            </div>
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Warning banner for multiple image selection */}
-                      {scene.selectedProductImages.length > 1 && (
-                        <div className="mb-3 p-3 bg-amber-50 border border-amber-200 rounded-lg">
-                          <div className="flex items-start space-x-2">
-                            <AlertTriangle className="w-5 h-5 text-amber-600 mt-0.5 flex-shrink-0" />
-                            <div className="text-sm">
-                              <p className="font-medium text-amber-800 mb-1">
-                                Multiple Images Selected
-                              </p>
-                              <p className="text-amber-700">
-                                Using multiple product images in a single scene
-                                may result in lower quality or inconsistent
-                                results. Consider using fewer images for better
-                                outcomes.
-                              </p>
-                            </div>
-                          </div>
-                        </div>
-                      )}
-
-                      <div className="grid grid-cols-3 gap-2">
-                        {state.productImages.map((image) => (
-                          <div
-                            key={image.id}
-                            className={`relative aspect-square rounded-lg overflow-hidden cursor-pointer border-2 transition-colors ${
-                              scene.selectedProductImages.includes(image.id)
-                                ? "border-primary ring-2 ring-primary/20"
-                                : "border-border hover:border-primary/50"
-                            }`}
-                            onClick={() =>
-                              toggleProductImage(scene.sceneNumber, image.id)
-                            }
-                          >
-                            <img
-                              src={image.url}
-                              alt={image.name}
-                              className="object-cover"
-                            />
-                            {scene.selectedProductImages.includes(image.id) && (
-                              <div className="absolute inset-0 bg-primary/20 flex items-center justify-center">
-                                <Check className="w-5 h-5 text-primary" />
-                              </div>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-
-                      {/* Selection count indicator */}
-                      {scene.selectedProductImages.length > 0 && (
-                        <p className="text-sm text-muted-foreground mt-2">
-                          {scene.selectedProductImages.length} image
-                          {scene.selectedProductImages.length !== 1
-                            ? "s"
-                            : ""}{" "}
-                          selected
-                        </p>
-                      )}
-                    </div>
-
-                    <div>
-                      <label className="text-sm font-medium mb-2 block">
-                        Image Description (optional):
-                      </label>
-                      <Textarea
-                        placeholder="Describe how you want this scene to look..."
-                        value={scene.imagePrompt}
-                        onChange={(e) =>
-                          updateSceneGeneration(scene.sceneNumber, {
-                            imagePrompt: e.target.value,
-                          })
-                        }
-                        className="min-h-[80px] resize-none"
-                      />
-                    </div>
-
-                    <div className="space-y-3">
-                      <CreditDisplay
-                        action="IMAGE_GENERATION"
-                        currentCredits={currentCredits}
-                        onPurchaseClick={() => setShowCreditModal(true)}
-                        numberOfScenes={totalScenes}
-                      />
                       <Button
-                        onClick={() => generateImage(scene.sceneNumber)}
-                        disabled={
-                          scene.selectedProductImages.length === 0 ||
-                          isGenerating ||
-                          currentCredits < 2
-                        }
-                        className="w-full"
+                        size="sm"
+                        variant="outline"
+                        onClick={() => toggleScriptEdit(scene.sceneNumber)}
                       >
-                        {isGenerating ? (
-                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                        ) : (
-                          <Wand2 className="w-4 h-4 mr-2" />
-                        )}
-                        {existingImage ? "Regenerate Image" : "Generate Image"}
+                        <Edit3 className="w-3 h-3 mr-1" />
+                        {scriptEditMode[scene.sceneNumber] ? "Cancel" : "Edit"}
                       </Button>
                     </div>
-                  </div>
-
-                  {/* Right: Generated Image */}
-                  <div>
-                    <label className="text-sm font-medium mb-2 block">
-                      Generated Image:
-                    </label>
-                    <div className="aspect-square rounded-lg overflow-hidden bg-muted border-2 border-dashed border-muted-foreground/25">
-                      {isGenerating ? (
-                        <div className="flex items-center justify-center h-full">
-                          <div className="text-center">
-                            <Loader2 className="w-8 h-8 animate-spin mx-auto mb-2 text-primary" />
-                            <p className="text-sm text-muted-foreground">
-                              Generating image...
-                            </p>
-                          </div>
-                        </div>
-                      ) : existingImage ? (
-                        <div className="relative h-full">
-                          <img
-                            src={existingImage.url}
-                            alt={`Scene ${scene.sceneNumber}`}
-                            className="object-cover"
-                          />
-                        </div>
-                      ) : (
-                        <div className="flex items-center justify-center h-full text-center">
-                          <div>
-                            <ImageIcon className="w-12 h-12 text-muted-foreground mx-auto mb-2" />
-                            <p className="text-sm text-muted-foreground">
-                              Click generate to create image
-                            </p>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-
-                    {existingImage && (
-                      <div className="flex space-x-2 mt-3">
-                        <Button
-                          size="sm"
-                          variant={
-                            existingImage.approved ? "default" : "outline"
+                    {scriptEditMode[scene.sceneNumber] ? (
+                      <div className="space-y-2">
+                        <textarea
+                          value={
+                            editableScript[scene.sceneNumber] ||
+                            scene.scriptText
                           }
-                          onClick={() => approveImage(existingImage.id)}
-                          className="flex-1"
-                        >
-                          <Check className="w-4 h-4 mr-1" />
-                          {existingImage.approved ? "Approved" : "Approve"}
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => regenerateImage(existingImage.id)}
-                          disabled={isGenerating}
-                        >
-                          <RefreshCw className="w-4 h-4" />
-                        </Button>
+                          onChange={(e) =>
+                            updateScriptText(scene.sceneNumber, e.target.value)
+                          }
+                          className="w-full min-h-[80px] p-3 border border-input rounded-lg resize-none"
+                          placeholder="Enter script for this scene..."
+                        />
+                        <div className="flex space-x-2">
+                          <Button
+                            size="sm"
+                            onClick={() => saveScriptChanges(scene.sceneNumber)}
+                            className="flex-1"
+                          >
+                            <Check className="w-3 h-3 mr-1" />
+                            Save Changes
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => cancelScriptEdit(scene.sceneNumber)}
+                          >
+                            Cancel
+                          </Button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="p-3 bg-muted rounded-lg text-sm min-h-[80px] flex items-center">
+                        {scene.scriptText || "No script content for this scene"}
                       </div>
                     )}
                   </div>
+
+                  {/* Image Selection Button */}
+                  <div>
+                    <label className="text-sm font-medium mb-2 block">
+                      Scene Image: <span className="text-red-500">*</span>
+                    </label>
+
+                    {!scene.selectedImage && (
+                      <div className="mb-3 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                        <div className="flex items-center space-x-2">
+                          <svg
+                            className="w-4 h-4 text-amber-600"
+                            fill="currentColor"
+                            viewBox="0 0 20 20"
+                          >
+                            <path
+                              fillRule="evenodd"
+                              d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z"
+                              clipRule="evenodd"
+                            />
+                          </svg>
+                          <p className="text-amber-800 text-sm font-medium">
+                            Image required to continue
+                          </p>
+                        </div>
+                      </div>
+                    )}
+
+                    <Button
+                      variant={scene.selectedImage ? "secondary" : "outline"}
+                      className={`w-full h-20 border-2 border-dashed transition-all ${
+                        scene.selectedImage
+                          ? "border-green-300 bg-green-50 hover:bg-green-100"
+                          : "border-muted-foreground/25 hover:border-primary/50"
+                      }`}
+                      onClick={() => handleSceneImageSelect(scene.sceneNumber)}
+                    >
+                      <div className="text-center">
+                        {scene.selectedImage ? (
+                          <>
+                            <Check className="w-6 h-6 mx-auto mb-1 text-green-600" />
+                            <p className="text-sm font-medium text-green-800">
+                              Change Selected Image
+                            </p>
+                            <p className="text-xs text-green-600">
+                              {scene.selectedImage.name}
+                            </p>
+                          </>
+                        ) : (
+                          <>
+                            <FolderOpen className="w-6 h-6 mx-auto mb-1 text-muted-foreground" />
+                            <p className="text-sm font-medium">
+                              Select from Asset Library
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              Browse • Upload • Generate with AI
+                            </p>
+                          </>
+                        )}
+                      </div>
+                    </Button>
+                  </div>
                 </div>
-              </CardContent>
-            </Card>
-          );
-        })}
+
+                {/* Right: Selected Image Preview */}
+                <div>
+                  <label className="text-sm font-medium mb-2 block">
+                    Selected Image:
+                  </label>
+                  <div className="aspect-square rounded-lg overflow-hidden bg-muted border-2 border-dashed border-muted-foreground/25">
+                    {scene.selectedImage ? (
+                      <div className="relative h-full">
+                        <img
+                          src={
+                            scene.selectedImage.thumbnail_url ||
+                            scene.selectedImage.storage_url
+                          }
+                          alt={
+                            scene.selectedImage.alt_text ||
+                            scene.selectedImage.name
+                          }
+                          className="w-full h-full object-cover"
+                        />
+                        <div className="absolute top-2 right-2">
+                          <Badge className="bg-green-600">Selected</Badge>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex items-center justify-center h-full text-center">
+                        <div>
+                          <ImageIcon className="w-12 h-12 text-muted-foreground mx-auto mb-2" />
+                          <p className="text-sm text-muted-foreground">
+                            No image selected
+                          </p>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            Click &quot;Select from Asset Library&quot; to
+                            choose an image
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {scene.selectedImage && (
+                    <div className="mt-3 space-y-2">
+                      <div className="text-xs text-muted-foreground">
+                        <strong>Name:</strong> {scene.selectedImage.name}
+                      </div>
+                      {scene.selectedImage.alt_text && (
+                        <div className="text-xs text-muted-foreground">
+                          <strong>Description:</strong>{" "}
+                          {scene.selectedImage.alt_text}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
       </div>
 
       {/* Progress Summary */}
       <Card>
         <CardHeader>
-          <CardTitle>Generation Progress</CardTitle>
+          <CardTitle>Selection Progress</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-3 gap-6 text-center">
+          <div className="grid grid-cols-2 gap-6 text-center">
             <div>
               <div className="text-3xl font-bold text-primary">
                 {totalScenes}
@@ -670,53 +516,26 @@ export function ImageGeneration({ onNext, onPrev }: ImageGenerationProps) {
               <p className="text-sm text-muted-foreground">Total Scenes</p>
             </div>
             <div>
-              <div className="text-3xl font-bold text-blue-600">
-                {state.generatedImages.length}
-              </div>
-              <p className="text-sm text-muted-foreground">Generated</p>
-            </div>
-            <div>
               <div className="text-3xl font-bold text-green-600">
-                {approvedImages.length}
+                {scenesWithImages.length}
               </div>
-              <p className="text-sm text-muted-foreground">Approved</p>
+              <p className="text-sm text-muted-foreground">Images Selected</p>
             </div>
           </div>
-        </CardContent>
-      </Card>
-
-      {/* Campaign Details */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Campaign Details</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3 text-sm">
-          <div className="flex justify-between">
-            <span className="text-muted-foreground">Campaign:</span>
-            <span className="font-medium">{state.campaignName}</span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-muted-foreground">Objective:</span>
-            <span className="font-medium capitalize">
-              {state.campaignObjective?.replace("-", " ") || "Not set"}
-            </span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-muted-foreground">Scenes:</span>
-            <span className="font-medium">{state.numberOfScenes} scenes</span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-muted-foreground">Voice:</span>
-            <span className="font-medium capitalize">
-              {state?.voice?.name || "Not set"}
-            </span>
-          </div>
-          {state.videoDescription && (
-            <div className="mt-4 p-3 bg-muted rounded-lg">
-              <p className="text-xs text-muted-foreground mb-1">Description:</p>
-              <p className="text-sm">{state.videoDescription}</p>
+          <div className="mt-4">
+            <div className="w-full bg-muted rounded-full h-2">
+              <div
+                className="bg-green-600 h-2 rounded-full transition-all duration-300"
+                style={{
+                  width: `${(scenesWithImages.length / totalScenes) * 100}%`,
+                }}
+              />
             </div>
-          )}
+            <p className="text-xs text-muted-foreground text-center mt-2">
+              {scenesWithImages.length} of {totalScenes} scenes have images
+              selected
+            </p>
+          </div>
         </CardContent>
       </Card>
 
@@ -726,31 +545,20 @@ export function ImageGeneration({ onNext, onPrev }: ImageGenerationProps) {
           Back
         </Button>
         <Button onClick={handleNext} disabled={!canProceed} className="px-8">
-          Next: Select Images ({approvedImages.length} approved)
+          Next: Continue ({scenesWithImages.length}/{totalScenes} selected)
         </Button>
       </div>
 
-      {/* Credit Purchase Modal */}
-      <CreditPurchaseModal
-        isOpen={showCreditModal}
-        onClose={() => setShowCreditModal(false)}
-        currentCredits={currentCredits}
-        subscriptionPlan={subscriptionPlan}
-        onPurchaseSuccess={() => {
-          // Refresh credits after purchase
-          const fetchCredits = async () => {
-            try {
-              const response = await api.getCredits();
-              if (response.success) {
-                setCurrentCredits(response.data?.credits || 0);
-              }
-            } catch (error) {
-              console.error("Failed to fetch credits:", error);
-            }
-          };
-          fetchCredits();
-          setShowCreditModal(false);
-        }}
+      {/* Asset Library Modal */}
+      <AssetLibraryModal
+        isOpen={assetLibraryOpen}
+        onClose={() => setAssetLibraryOpen(false)}
+        onSelectAssets={handleAssetLibrarySelect}
+        multiSelect={false}
+        title={`Select Image for Scene ${currentScene}`}
+        description="Choose an image from your asset library, upload a new one, or generate with AI"
+        acceptedFileTypes={["image/*"]}
+        maxFileSize={10 * 1024 * 1024}
       />
     </div>
   );

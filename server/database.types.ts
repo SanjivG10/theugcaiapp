@@ -14,6 +14,153 @@ export type Database = {
   }
   public: {
     Tables: {
+      asset_files: {
+        Row: {
+          alt_text: string | null
+          business_id: string | null
+          created_at: string | null
+          download_count: number | null
+          file_size: number
+          file_type: string
+          folder_id: string | null
+          generation_model: string | null
+          generation_prompt: string | null
+          generation_settings: Json | null
+          height: number | null
+          id: string
+          is_generated: boolean | null
+          last_accessed_at: string | null
+          metadata: Json | null
+          name: string
+          original_name: string
+          storage_path: string
+          storage_url: string
+          tags: string[] | null
+          thumbnail_url: string | null
+          updated_at: string | null
+          user_id: string
+          width: number | null
+        }
+        Insert: {
+          alt_text?: string | null
+          business_id?: string | null
+          created_at?: string | null
+          download_count?: number | null
+          file_size: number
+          file_type: string
+          folder_id?: string | null
+          generation_model?: string | null
+          generation_prompt?: string | null
+          generation_settings?: Json | null
+          height?: number | null
+          id?: string
+          is_generated?: boolean | null
+          last_accessed_at?: string | null
+          metadata?: Json | null
+          name: string
+          original_name: string
+          storage_path: string
+          storage_url: string
+          tags?: string[] | null
+          thumbnail_url?: string | null
+          updated_at?: string | null
+          user_id: string
+          width?: number | null
+        }
+        Update: {
+          alt_text?: string | null
+          business_id?: string | null
+          created_at?: string | null
+          download_count?: number | null
+          file_size?: number
+          file_type?: string
+          folder_id?: string | null
+          generation_model?: string | null
+          generation_prompt?: string | null
+          generation_settings?: Json | null
+          height?: number | null
+          id?: string
+          is_generated?: boolean | null
+          last_accessed_at?: string | null
+          metadata?: Json | null
+          name?: string
+          original_name?: string
+          storage_path?: string
+          storage_url?: string
+          tags?: string[] | null
+          thumbnail_url?: string | null
+          updated_at?: string | null
+          user_id?: string
+          width?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "asset_files_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "asset_files_folder_id_fkey"
+            columns: ["folder_id"]
+            isOneToOne: false
+            referencedRelation: "asset_folders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      asset_folders: {
+        Row: {
+          business_id: string | null
+          color: string | null
+          created_at: string | null
+          description: string | null
+          id: string
+          name: string
+          parent_folder_id: string | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          business_id?: string | null
+          color?: string | null
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          name: string
+          parent_folder_id?: string | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          business_id?: string | null
+          color?: string | null
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          name?: string
+          parent_folder_id?: string | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "asset_folders_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "asset_folders_parent_folder_id_fkey"
+            columns: ["parent_folder_id"]
+            isOneToOne: false
+            referencedRelation: "asset_folders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       business_users: {
         Row: {
           business_id: string
@@ -166,76 +313,52 @@ export type Database = {
       }
       campaigns: {
         Row: {
-          business_id: string
-          campaign_type: string | null
-          completed_at: string | null
+          business_id: string | null
           created_at: string | null
           credits_used: number | null
           current_step: number | null
           description: string | null
-          estimated_credits: number | null
+          final_url: string | null
           id: string
-          is_template: boolean | null
-          metadata: Json | null
           name: string
-          output_urls: string[] | null
-          prompt: string | null
-          settings: Json | null
-          started_at: string | null
-          status: string | null
-          step_data: Json | null
-          thumbnail_url: string | null
-          total_steps: number | null
+          scene_data: Json | null
+          scene_number: number
+          script: Json | null
+          status: string
           updated_at: string | null
-          user_id: string
+          user_id: string | null
         }
         Insert: {
-          business_id: string
-          campaign_type?: string | null
-          completed_at?: string | null
+          business_id?: string | null
           created_at?: string | null
           credits_used?: number | null
           current_step?: number | null
           description?: string | null
-          estimated_credits?: number | null
+          final_url?: string | null
           id?: string
-          is_template?: boolean | null
-          metadata?: Json | null
           name: string
-          output_urls?: string[] | null
-          prompt?: string | null
-          settings?: Json | null
-          started_at?: string | null
-          status?: string | null
-          step_data?: Json | null
-          thumbnail_url?: string | null
-          total_steps?: number | null
+          scene_data?: Json | null
+          scene_number?: number
+          script?: Json | null
+          status?: string
           updated_at?: string | null
-          user_id: string
+          user_id?: string | null
         }
         Update: {
-          business_id?: string
-          campaign_type?: string | null
-          completed_at?: string | null
+          business_id?: string | null
           created_at?: string | null
           credits_used?: number | null
           current_step?: number | null
           description?: string | null
-          estimated_credits?: number | null
+          final_url?: string | null
           id?: string
-          is_template?: boolean | null
-          metadata?: Json | null
           name?: string
-          output_urls?: string[] | null
-          prompt?: string | null
-          settings?: Json | null
-          started_at?: string | null
-          status?: string | null
-          step_data?: Json | null
-          thumbnail_url?: string | null
-          total_steps?: number | null
+          scene_data?: Json | null
+          scene_number?: number
+          script?: Json | null
+          status?: string
           updated_at?: string | null
-          user_id?: string
+          user_id?: string | null
         }
         Relationships: [
           {
@@ -243,13 +366,6 @@ export type Database = {
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "businesses"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "campaigns_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "users"
             referencedColumns: ["id"]
           },
         ]
@@ -338,13 +454,6 @@ export type Database = {
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "businesses"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "credit_usage_logs_campaign_id_fkey"
-            columns: ["campaign_id"]
-            isOneToOne: false
-            referencedRelation: "campaigns"
             referencedColumns: ["id"]
           },
           {
@@ -768,6 +877,10 @@ export type Database = {
           status: string
           used_credits: number
         }[]
+      }
+      increment_download_count: {
+        Args: { file_uuid: string }
+        Returns: undefined
       }
       update_business_credits: {
         Args: {

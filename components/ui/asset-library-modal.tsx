@@ -1,15 +1,5 @@
 "use client";
 
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -35,14 +25,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { api } from "@/lib/api";
+import { AssetFile, AssetFolder } from "@/types";
 import {
   Check,
   ChevronLeft,
   Edit3,
   Folder,
+  FolderOpen,
   FolderPlus,
   Grid3X3,
   Image as ImageIcon,
@@ -53,37 +44,10 @@ import {
   Trash2,
   Upload,
   Wand2,
+  Download,
 } from "lucide-react";
 import React, { useCallback, useEffect, useState } from "react";
 import toast from "react-hot-toast";
-
-interface AssetFolder {
-  id: string;
-  name: string;
-  description?: string;
-  color: string;
-  parent_folder_id?: string;
-  created_at: string;
-}
-
-interface AssetFile {
-  id: string;
-  name: string;
-  original_name: string;
-  file_type: string;
-  file_size: number;
-  width?: number;
-  height?: number;
-  storage_url: string;
-  thumbnail_url?: string;
-  is_generated: boolean;
-  generation_prompt?: string;
-  alt_text?: string;
-  tags: string[];
-  download_count: number;
-  created_at: string;
-  folder_id?: string;
-}
 
 interface AssetLibraryModalProps {
   isOpen: boolean;
@@ -110,8 +74,8 @@ export function AssetLibraryModal({
   onClose,
   onSelectAssets,
   multiSelect = false,
-  title = "Select Assets",
-  description = "Choose assets from your library or upload new ones",
+  title = "Asset Library",
+  description = "Browse, upload or generate images for your project",
   acceptedFileTypes = ["image/*"],
   maxFileSize = 10 * 1024 * 1024, // 10MB
 }: AssetLibraryModalProps) {
@@ -134,6 +98,8 @@ export function AssetLibraryModal({
   // Dialog states
   const [createFolderOpen, setCreateFolderOpen] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [editImageOpen, setEditImageOpen] = useState(false);
+  const [editingFile, setEditingFile] = useState<AssetFile | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<{
     type: "folder" | "file";
     id: string;
@@ -157,7 +123,19 @@ export function AssetLibraryModal({
     quality: "standard" as "standard" | "hd",
     style: "vivid" as "vivid" | "natural",
   });
+  const [editForm, setEditForm] = useState({
+    prompt: "",
+    size: "1024x1024" as
+      | "1024x1024"
+      | "1536x1024"
+      | "1024x1536"
+      | "256x256"
+      | "512x512",
+    quality: "auto" as "auto" | "low" | "medium" | "high",
+    style: "vivid" as "vivid" | "natural",
+  });
   const [isGenerating, setIsGenerating] = useState(false);
+  const [activeTab, setActiveTab] = useState("browse");
 
   // Load folders and files
   const loadFolders = useCallback(async () => {
@@ -215,6 +193,7 @@ export function AssetLibraryModal({
       setSearchQuery("");
       setFileTypeFilter("");
       setCreateFolderOpen(false);
+      setActiveTab("browse");
     }
   }, [isOpen]);
 
@@ -350,6 +329,49 @@ export function AssetLibraryModal({
     }
   };
 
+  // Edit image handler
+  const handleEditImage = async () => {
+    if (!editingFile || !editForm.prompt.trim()) {
+      toast.error("Prompt is required");
+      return;
+    }
+
+    setIsGenerating(true);
+    try {
+      const response = await api.editAssetImage(editingFile.id, {
+        prompt: editForm.prompt,
+        size: editForm.size,
+        quality: editForm.quality,
+        style: editForm.style,
+      });
+
+      if (response.success) {
+        toast.success("Image edited successfully");
+        setEditImageOpen(false);
+        setEditForm({
+          prompt: "",
+          size: "1024x1024",
+          quality: "auto",
+          style: "vivid",
+        });
+        setEditingFile(null);
+        loadFiles();
+      } else {
+        toast.error(response.message || "Failed to edit image");
+      }
+    } catch (error) {
+      console.error("Error editing image:", error);
+      toast.error("Failed to edit image");
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  const handleEditClick = (file: AssetFile) => {
+    setEditingFile(file);
+    setEditImageOpen(true);
+  };
+
   // Navigation handlers
   const navigateToFolder = (folder: AssetFolder) => {
     setCurrentFolderId(folder.id);
@@ -443,535 +465,680 @@ export function AssetLibraryModal({
     onClose();
   };
 
+  const handleDownloadFile = (file: AssetFile) => {
+    window.open(file.storage_url, "_blank");
+  };
+
   return (
     <>
       <Dialog open={isOpen} onOpenChange={onClose}>
-        <DialogContent className="max-w-6xl h-[85vh] flex flex-col gap-0 p-0 bg-white dark:bg-gray-900">
-          <DialogHeader className="bg-gradient-to-r from-blue-600 to-purple-600 text-white p-6 border-0 rounded-t-lg">
-            <DialogTitle className="text-2xl font-bold text-white">
+        <DialogContent className="max-w-6xl h-[85vh] flex flex-col gap-0 p-0 bg-white">
+          <DialogHeader className="bg-white p-6 border-b border-gray-200">
+            <DialogTitle className="text-2xl font-bold text-gray-900">
               {title}
             </DialogTitle>
-            <DialogDescription className="text-blue-100 text-base mt-2">
+            <DialogDescription className="text-gray-600 text-base mt-1">
               {description}
             </DialogDescription>
           </DialogHeader>
 
-          <Tabs defaultValue="browse" className="flex-1 flex flex-col p-6">
-            <TabsList className="grid w-full grid-cols-3 bg-gray-100 dark:bg-gray-800 p-1 rounded-lg mb-6">
-              <TabsTrigger value="browse">Browse Library</TabsTrigger>
-              <TabsTrigger value="upload">Upload Files</TabsTrigger>
-              <TabsTrigger value="generate">Generate Image</TabsTrigger>
-            </TabsList>
+          <div className="flex-1 flex">
+            {/* Vertical Sidebar */}
+            <div className="w-64 bg-gray-50 border-r border-gray-200 p-4">
+              <div className="space-y-2">
+                <button
+                  onClick={() => setActiveTab("browse")}
+                  className={`w-full flex items-center space-x-3 p-3 rounded-lg text-left transition-colors ${
+                    activeTab === "browse"
+                      ? "bg-primary text-white shadow-sm"
+                      : "text-gray-600 hover:bg-gray-100"
+                  }`}
+                >
+                  <FolderOpen className="w-5 h-5" />
+                  <span className="font-medium">Browse Library</span>
+                </button>
+                <button
+                  onClick={() => setActiveTab("upload")}
+                  className={`w-full flex items-center space-x-3 p-3 rounded-lg text-left transition-colors ${
+                    activeTab === "upload"
+                      ? "bg-primary text-white shadow-sm"
+                      : "text-gray-600 hover:bg-gray-100"
+                  }`}
+                >
+                  <Upload className="w-5 h-5" />
+                  <span className="font-medium">Upload Files</span>
+                </button>
+                <button
+                  onClick={() => setActiveTab("generate")}
+                  className={`w-full flex items-center space-x-3 p-3 rounded-lg text-left transition-colors ${
+                    activeTab === "generate"
+                      ? "bg-primary text-white shadow-sm"
+                      : "text-gray-600 hover:bg-gray-100"
+                  }`}
+                >
+                  <Wand2 className="w-5 h-5" />
+                  <span className="font-medium">Generate Image</span>
+                </button>
+              </div>
+            </div>
 
-            <TabsContent
-              value="browse"
-              className="flex-1 flex flex-col space-y-4"
-            >
-              {/* Breadcrumb Navigation */}
-              {folderPath.length > 0 && (
-                <div className="flex items-center space-x-2 text-sm text-muted-foreground">
-                  <button
-                    onClick={navigateToRoot}
-                    className="hover:text-foreground"
-                  >
-                    Root
-                  </button>
-                  {folderPath.map((folder, index) => (
-                    <React.Fragment key={folder.id}>
-                      <span>/</span>
-                      <button
-                        onClick={() => {
-                          const newPath = folderPath.slice(0, index + 1);
-                          setFolderPath(newPath);
-                          setCurrentFolderId(folder.id);
-                        }}
-                        className="hover:text-foreground"
-                      >
-                        {folder.name}
-                      </button>
-                    </React.Fragment>
-                  ))}
-                </div>
-              )}
-
-              {/* Action Bar */}
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-2">
+            {/* Main Content */}
+            <div className="flex-1 flex flex-col">
+              {activeTab === "browse" && (
+                <div className="flex-1 flex flex-col space-y-4 p-6">
+                  {/* Breadcrumb Navigation */}
                   {folderPath.length > 0 && (
-                    <Button variant="outline" size="sm" onClick={navigateBack}>
-                      <ChevronLeft className="w-4 h-4 mr-1" />
-                      Back
-                    </Button>
+                    <div className="flex items-center space-x-2 text-sm text-gray-500">
+                      <button
+                        onClick={navigateToRoot}
+                        className="hover:text-gray-700"
+                      >
+                        Root
+                      </button>
+                      {folderPath.map((folder, index) => (
+                        <React.Fragment key={folder.id}>
+                          <span>/</span>
+                          <button
+                            onClick={() => {
+                              const newPath = folderPath.slice(0, index + 1);
+                              setFolderPath(newPath);
+                              setCurrentFolderId(folder.id);
+                            }}
+                            className="hover:text-gray-700"
+                          >
+                            {folder.name}
+                          </button>
+                        </React.Fragment>
+                      ))}
+                    </div>
                   )}
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setCreateFolderOpen(true)}
-                  >
-                    <FolderPlus className="w-4 h-4 mr-1" />
-                    New Folder
-                  </Button>
-                </div>
 
-                <div className="flex items-center space-x-2">
-                  <div className="relative">
-                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
-                    <Input
-                      placeholder="Search..."
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      className="pl-10 w-64"
-                    />
-                  </div>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() =>
-                      setViewMode(viewMode === "grid" ? "list" : "grid")
-                    }
-                  >
-                    {viewMode === "grid" ? (
-                      <List className="w-4 h-4" />
-                    ) : (
-                      <Grid3X3 className="w-4 h-4" />
-                    )}
-                  </Button>
-                </div>
-              </div>
-
-              {/* Content Area */}
-              <div className="flex-1 overflow-y-auto">
-                {loading ? (
-                  <div className="flex items-center justify-center h-64">
-                    <Loader2 className="w-8 h-8 animate-spin" />
-                  </div>
-                ) : (
-                  <div className="space-y-6">
-                    {/* Folders */}
-                    {folders.length > 0 && (
-                      <div>
-                        <h4 className="text-sm font-medium mb-3">Folders</h4>
-                        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
-                          {folders.map((folder) => (
-                            <div
-                              key={folder.id}
-                              className="flex flex-col items-center p-3 rounded-lg border cursor-pointer hover:bg-muted/50 transition-colors group"
-                              onClick={() => navigateToFolder(folder)}
-                            >
-                              <div className="flex items-center justify-between w-full mb-2">
-                                <div
-                                  className="w-8 h-8 rounded flex items-center justify-center"
-                                  style={{ backgroundColor: folder.color }}
-                                >
-                                  <Folder className="w-5 h-5 text-white" />
-                                </div>
-                                <DropdownMenu>
-                                  <DropdownMenuTrigger asChild>
-                                    <Button
-                                      variant="ghost"
-                                      size="sm"
-                                      className="opacity-0 group-hover:opacity-100 transition-opacity"
-                                      onClick={(e) => e.stopPropagation()}
-                                    >
-                                      <MoreVertical className="w-4 h-4" />
-                                    </Button>
-                                  </DropdownMenuTrigger>
-                                  <DropdownMenuContent align="end">
-                                    <DropdownMenuItem>
-                                      <Edit3 className="w-4 h-4 mr-2" />
-                                      Rename
-                                    </DropdownMenuItem>
-                                    <DropdownMenuSeparator />
-                                    <DropdownMenuItem
-                                      className="text-red-600"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        handleDeleteClick(
-                                          "folder",
-                                          folder.id,
-                                          folder.name
-                                        );
-                                      }}
-                                    >
-                                      <Trash2 className="w-4 h-4 mr-2" />
-                                      Delete
-                                    </DropdownMenuItem>
-                                  </DropdownMenuContent>
-                                </DropdownMenu>
-                              </div>
-                              <p className="text-xs font-medium text-center truncate w-full">
-                                {folder.name}
-                              </p>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Files */}
-                    <div>
-                      <h4 className="text-sm font-medium mb-3">Files</h4>
-                      {filesLoading ? (
-                        <div className="flex items-center justify-center h-32">
-                          <Loader2 className="w-6 h-6 animate-spin" />
-                        </div>
-                      ) : files.length === 0 ? (
-                        <div className="text-center py-12">
-                          <ImageIcon className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-                          <p className="text-muted-foreground">
-                            {searchQuery
-                              ? "No files match your search"
-                              : "No files in this folder"}
-                          </p>
-                        </div>
-                      ) : viewMode === "grid" ? (
-                        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
-                          {files.map((file) => (
-                            <div
-                              key={file.id}
-                              className={`relative aspect-square rounded-lg overflow-hidden border-2 cursor-pointer transition-all ${
-                                isAssetSelected(file)
-                                  ? "border-primary ring-2 ring-primary/20"
-                                  : "border-border hover:border-primary/50"
-                              }`}
-                              onClick={() => handleAssetSelect(file)}
-                            >
-                              <img
-                                src={file.thumbnail_url || file.storage_url}
-                                alt={file.alt_text || file.name}
-                                className="object-cover"
-                                sizes="(max-width: 768px) 50vw, (max-width: 1024px) 25vw, 16.67vw"
-                              />
-                              {isAssetSelected(file) && (
-                                <div className="absolute inset-0 bg-primary/20 flex items-center justify-center">
-                                  <div className="w-6 h-6 bg-primary rounded-full flex items-center justify-center">
-                                    <Check className="w-4 h-4 text-white" />
-                                  </div>
-                                </div>
-                              )}
-                              {file.is_generated && (
-                                <Badge
-                                  variant="secondary"
-                                  className="absolute top-1 left-1 text-xs"
-                                >
-                                  AI
-                                </Badge>
-                              )}
-                              <div className="absolute bottom-0 left-0 right-0 bg-black/50 text-white p-1">
-                                <p
-                                  className="text-xs truncate"
-                                  title={file.name}
-                                >
-                                  {file.name}
-                                </p>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      ) : (
-                        <div className="space-y-1">
-                          {files.map((file) => (
-                            <div
-                              key={file.id}
-                              className={`flex items-center p-3 rounded-lg cursor-pointer transition-colors ${
-                                isAssetSelected(file)
-                                  ? "bg-primary/10 border border-primary/20"
-                                  : "hover:bg-muted/50"
-                              }`}
-                              onClick={() => handleAssetSelect(file)}
-                            >
-                              <div className="w-10 h-10 rounded overflow-hidden bg-muted flex-shrink-0 mr-3">
-                                <img
-                                  src={file.thumbnail_url || file.storage_url}
-                                  alt={file.alt_text || file.name}
-                                  width={40}
-                                  height={40}
-                                  className="object-cover"
-                                />
-                              </div>
-                              <div className="flex-1 min-w-0">
-                                <div className="flex items-center space-x-2">
-                                  <p className="font-medium text-sm truncate">
-                                    {file.name}
-                                  </p>
-                                  {file.is_generated && (
-                                    <Badge
-                                      variant="secondary"
-                                      className="text-xs"
-                                    >
-                                      AI
-                                    </Badge>
-                                  )}
-                                </div>
-                                <p className="text-xs text-muted-foreground">
-                                  {formatFileSize(file.file_size)} •{" "}
-                                  {file.width} × {file.height}
-                                </p>
-                              </div>
-                              {isAssetSelected(file) && (
-                                <div className="w-5 h-5 bg-primary rounded-full flex items-center justify-center ml-2">
-                                  <Check className="w-3 h-3 text-white" />
-                                </div>
-                              )}
-                            </div>
-                          ))}
-                        </div>
+                  {/* Action Bar */}
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-2">
+                      {folderPath.length > 0 && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={navigateBack}
+                        >
+                          <ChevronLeft className="w-4 h-4 mr-1" />
+                          Back
+                        </Button>
                       )}
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setCreateFolderOpen(true)}
+                      >
+                        <FolderPlus className="w-4 h-4 mr-1" />
+                        New Folder
+                      </Button>
                     </div>
-                  </div>
-                )}
-              </div>
-            </TabsContent>
 
-            <TabsContent value="upload" className="flex-1 flex flex-col">
-              <div className="flex-1 flex items-center justify-center p-8">
-                <div className="text-center max-w-lg w-full">
-                  <div className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-2xl p-12 bg-gray-50 dark:bg-gray-800/50 hover:border-blue-400 dark:hover:border-blue-500 transition-colors">
-                    <Upload className="h-20 w-20 text-gray-400 mx-auto mb-6" />
-                    <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-3">
-                      Upload Files
-                    </h3>
-                    <p className="text-gray-600 dark:text-gray-400 mb-8 text-lg">
-                      Select images from your computer to add to your library
-                    </p>
-                    <div className="space-y-4">
-                      <Input
-                        type="file"
-                        multiple
-                        accept={acceptedFileTypes.join(",")}
-                        onChange={handleUploadFile}
-                        disabled={isUploading}
-                        className="file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-sm file:font-semibold file:bg-gradient-to-r file:from-blue-600 file:to-purple-600 file:text-white hover:file:from-blue-700 hover:file:to-purple-700 file:cursor-pointer border-2 border-gray-300 rounded-xl p-4"
-                      />
-                      {isUploading && (
-                        <div className="space-y-3 bg-white dark:bg-gray-800 p-4 rounded-xl border">
-                          <div className="flex items-center justify-between text-sm font-medium">
-                            <span>Uploading files...</span>
-                            <span className="text-blue-600">
-                              {Math.round(uploadProgress)}%
-                            </span>
-                          </div>
-                          <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-3">
-                            <div
-                              className="bg-gradient-to-r from-blue-600 to-purple-600 h-3 rounded-full transition-all duration-300"
-                              style={{ width: `${uploadProgress}%` }}
-                            />
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                    <p className="text-sm text-gray-500 dark:text-gray-400 mt-6">
-                      Supports: JPG, PNG, WebP, GIF (Max 10MB each)
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </TabsContent>
-
-            <TabsContent value="generate" className="flex-1 flex flex-col">
-              <div className="flex-1 overflow-y-auto">
-                <div className="max-w-2xl mx-auto space-y-6">
-                  <div className="text-center">
-                    <Wand2 className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
-                    <h3 className="text-lg font-semibold mb-2">
-                      Generate AI Image
-                    </h3>
-                    <p className="text-muted-foreground">
-                      Create a new image using AI based on your description.
-                    </p>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-6">
-                    <div className="space-y-4">
-                      <div>
-                        <label className="text-sm font-medium">
-                          Image Name
-                        </label>
+                    <div className="flex items-center space-x-2">
+                      <div className="relative">
+                        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
                         <Input
-                          value={generateForm.name}
-                          onChange={(e) =>
-                            setGenerateForm((prev) => ({
-                              ...prev,
-                              name: e.target.value,
-                            }))
-                          }
-                          placeholder="Enter image name"
+                          placeholder="Search..."
+                          value={searchQuery}
+                          onChange={(e) => setSearchQuery(e.target.value)}
+                          className="pl-10 w-64"
                         />
-                      </div>
-                      <div>
-                        <label className="text-sm font-medium">
-                          Description/Prompt
-                        </label>
-                        <Textarea
-                          value={generateForm.prompt}
-                          onChange={(e) =>
-                            setGenerateForm((prev) => ({
-                              ...prev,
-                              prompt: e.target.value,
-                            }))
-                          }
-                          placeholder="Describe the image you want to generate"
-                          rows={4}
-                        />
-                      </div>
-                      <div>
-                        <label className="text-sm font-medium">
-                          Alt Text (Optional)
-                        </label>
-                        <Input
-                          value={generateForm.alt_text}
-                          onChange={(e) =>
-                            setGenerateForm((prev) => ({
-                              ...prev,
-                              alt_text: e.target.value,
-                            }))
-                          }
-                          placeholder="Alt text for accessibility"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-sm font-medium">
-                          Tags (Optional)
-                        </label>
-                        <Input
-                          value={generateForm.tags}
-                          onChange={(e) =>
-                            setGenerateForm((prev) => ({
-                              ...prev,
-                              tags: e.target.value,
-                            }))
-                          }
-                          placeholder="tag1, tag2, tag3"
-                        />
-                      </div>
-                    </div>
-                    <div className="space-y-4">
-                      <div>
-                        <label className="text-sm font-medium">Size</label>
-                        <Select
-                          value={generateForm.size}
-                          onValueChange={(
-                            value: "1024x1024" | "1792x1024" | "1024x1792"
-                          ) =>
-                            setGenerateForm((prev) => ({
-                              ...prev,
-                              size: value,
-                            }))
-                          }
-                        >
-                          <SelectTrigger>
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="1024x1024">
-                              Square (1024×1024)
-                            </SelectItem>
-                            <SelectItem value="1792x1024">
-                              Landscape (1792×1024)
-                            </SelectItem>
-                            <SelectItem value="1024x1792">
-                              Portrait (1024×1792)
-                            </SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div>
-                        <label className="text-sm font-medium">Quality</label>
-                        <Select
-                          value={generateForm.quality}
-                          onValueChange={(value: "standard" | "hd") =>
-                            setGenerateForm((prev) => ({
-                              ...prev,
-                              quality: value,
-                            }))
-                          }
-                        >
-                          <SelectTrigger>
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="standard">Standard</SelectItem>
-                            <SelectItem value="hd">HD (Higher Cost)</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div>
-                        <label className="text-sm font-medium">Style</label>
-                        <Select
-                          value={generateForm.style}
-                          onValueChange={(value: "vivid" | "natural") =>
-                            setGenerateForm((prev) => ({
-                              ...prev,
-                              style: value,
-                            }))
-                          }
-                        >
-                          <SelectTrigger>
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="vivid">
-                              Vivid (More stylized)
-                            </SelectItem>
-                            <SelectItem value="natural">
-                              Natural (More realistic)
-                            </SelectItem>
-                          </SelectContent>
-                        </Select>
                       </div>
                       <Button
-                        onClick={handleGenerateImage}
-                        disabled={
-                          isGenerating ||
-                          !generateForm.name.trim() ||
-                          !generateForm.prompt.trim()
+                        variant="outline"
+                        size="sm"
+                        onClick={() =>
+                          setViewMode(viewMode === "grid" ? "list" : "grid")
                         }
-                        className="w-full"
                       >
-                        {isGenerating ? (
-                          <>
-                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                            Generating...
-                          </>
+                        {viewMode === "grid" ? (
+                          <List className="w-4 h-4" />
                         ) : (
-                          <>
-                            <Wand2 className="w-4 h-4 mr-2" />
-                            Generate Image
-                          </>
+                          <Grid3X3 className="w-4 h-4" />
                         )}
                       </Button>
                     </div>
                   </div>
+
+                  {/* Content Area */}
+                  <div className="flex-1 overflow-y-auto">
+                    {loading ? (
+                      <div className="flex items-center justify-center h-64">
+                        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+                      </div>
+                    ) : (
+                      <div className="space-y-6">
+                        {/* Folders */}
+                        {folders.length > 0 && (
+                          <div>
+                            <h4 className="text-sm font-medium mb-3 text-gray-700">
+                              Folders
+                            </h4>
+                            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
+                              {folders.map((folder) => (
+                                <div
+                                  key={folder.id}
+                                  className="flex flex-col items-center p-3 rounded-lg border border-gray-200 cursor-pointer hover:bg-gray-50 transition-colors group"
+                                  onClick={() => navigateToFolder(folder)}
+                                >
+                                  <div className="flex items-center justify-between w-full mb-2">
+                                    <div
+                                      className="w-8 h-8 rounded flex items-center justify-center"
+                                      style={{ backgroundColor: folder.color }}
+                                    >
+                                      <Folder className="w-5 h-5 text-white" />
+                                    </div>
+                                    <DropdownMenu>
+                                      <DropdownMenuTrigger asChild>
+                                        <Button
+                                          variant="ghost"
+                                          size="sm"
+                                          className="opacity-0 group-hover:opacity-100 transition-opacity h-6 w-6 p-0"
+                                          onClick={(e) => e.stopPropagation()}
+                                        >
+                                          <MoreVertical className="w-4 h-4" />
+                                        </Button>
+                                      </DropdownMenuTrigger>
+                                      <DropdownMenuContent
+                                        align="end"
+                                        className="bg-white border border-gray-200 shadow-lg"
+                                      >
+                                        <DropdownMenuItem>
+                                          <Edit3 className="w-4 h-4 mr-2" />
+                                          Rename
+                                        </DropdownMenuItem>
+                                        <DropdownMenuSeparator />
+                                        <DropdownMenuItem
+                                          className="text-red-600"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleDeleteClick(
+                                              "folder",
+                                              folder.id,
+                                              folder.name
+                                            );
+                                          }}
+                                        >
+                                          <Trash2 className="w-4 h-4 mr-2" />
+                                          Delete
+                                        </DropdownMenuItem>
+                                      </DropdownMenuContent>
+                                    </DropdownMenu>
+                                  </div>
+                                  <p className="text-xs font-medium text-center truncate w-full text-gray-700">
+                                    {folder.name}
+                                  </p>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Files */}
+                        <div>
+                          <h4 className="text-sm font-medium mb-3 text-gray-700">
+                            Files
+                          </h4>
+                          {filesLoading ? (
+                            <div className="flex items-center justify-center h-32">
+                              <Loader2 className="w-6 h-6 animate-spin text-primary" />
+                            </div>
+                          ) : files.length === 0 ? (
+                            <div className="text-center py-12">
+                              <ImageIcon className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                              <p className="text-gray-500">
+                                {searchQuery
+                                  ? "No files match your search"
+                                  : "No files in this folder"}
+                              </p>
+                            </div>
+                          ) : viewMode === "grid" ? (
+                            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
+                              {files.map((file) => (
+                                <div
+                                  key={file.id}
+                                  className={`relative aspect-square rounded-lg overflow-hidden border-2 cursor-pointer transition-all group ${
+                                    isAssetSelected(file)
+                                      ? "border-primary ring-2 ring-primary/20"
+                                      : "border-gray-200 hover:border-primary/50"
+                                  }`}
+                                  onClick={() => handleAssetSelect(file)}
+                                >
+                                  <img
+                                    src={file.thumbnail_url || file.storage_url}
+                                    alt={file.alt_text || file.name}
+                                    className="w-full h-full object-cover"
+                                  />
+                                  {isAssetSelected(file) && (
+                                    <div className="absolute inset-0 bg-primary/20 flex items-center justify-center">
+                                      <div className="w-6 h-6 bg-primary rounded-full flex items-center justify-center">
+                                        <Check className="w-4 h-4 text-white" />
+                                      </div>
+                                    </div>
+                                  )}
+                                  {file.is_generated && (
+                                    <Badge
+                                      variant="secondary"
+                                      className="absolute top-1 left-1 text-xs"
+                                    >
+                                      AI
+                                    </Badge>
+                                  )}
+                                  <div className="absolute top-1 right-1">
+                                    <DropdownMenu>
+                                      <DropdownMenuTrigger asChild>
+                                        <Button
+                                          variant="ghost"
+                                          size="sm"
+                                          className="opacity-0 group-hover:opacity-100 transition-opacity h-6 w-6 p-0 bg-black/50 hover:bg-black/70 text-white"
+                                          onClick={(e) => e.stopPropagation()}
+                                        >
+                                          <MoreVertical className="w-4 h-4" />
+                                        </Button>
+                                      </DropdownMenuTrigger>
+                                      <DropdownMenuContent
+                                        align="end"
+                                        className="bg-white border border-gray-200 shadow-lg"
+                                      >
+                                        <DropdownMenuItem
+                                          onClick={() => handleEditClick(file)}
+                                        >
+                                          <Edit3 className="w-4 h-4 mr-2" />
+                                          Edit
+                                        </DropdownMenuItem>
+                                        <DropdownMenuItem
+                                          onClick={() =>
+                                            handleDownloadFile(file)
+                                          }
+                                        >
+                                          <Download className="w-4 h-4 mr-2" />
+                                          Download
+                                        </DropdownMenuItem>
+                                        <DropdownMenuSeparator />
+                                        <DropdownMenuItem
+                                          className="text-red-600"
+                                          onClick={() =>
+                                            handleDeleteClick(
+                                              "file",
+                                              file.id,
+                                              file.name
+                                            )
+                                          }
+                                        >
+                                          <Trash2 className="w-4 h-4 mr-2" />
+                                          Delete
+                                        </DropdownMenuItem>
+                                      </DropdownMenuContent>
+                                    </DropdownMenu>
+                                  </div>
+                                  <div className="absolute bottom-0 left-0 right-0 bg-black/50 text-white p-1">
+                                    <p
+                                      className="text-xs truncate"
+                                      title={file.name}
+                                    >
+                                      {file.name}
+                                    </p>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <div className="space-y-1">
+                              {files.map((file) => (
+                                <div
+                                  key={file.id}
+                                  className={`flex items-center p-3 rounded-lg cursor-pointer transition-colors ${
+                                    isAssetSelected(file)
+                                      ? "bg-primary/10 border border-primary/20"
+                                      : "hover:bg-gray-50"
+                                  }`}
+                                  onClick={() => handleAssetSelect(file)}
+                                >
+                                  <div className="w-10 h-10 rounded overflow-hidden bg-gray-100 flex-shrink-0 mr-3">
+                                    <img
+                                      src={
+                                        file.thumbnail_url || file.storage_url
+                                      }
+                                      alt={file.alt_text || file.name}
+                                      width={40}
+                                      height={40}
+                                      className="object-cover w-full h-full"
+                                    />
+                                  </div>
+                                  <div className="flex-1 min-w-0">
+                                    <div className="flex items-center space-x-2">
+                                      <p className="font-medium text-sm truncate text-gray-900">
+                                        {file.name}
+                                      </p>
+                                      {file.is_generated && (
+                                        <Badge
+                                          variant="secondary"
+                                          className="text-xs"
+                                        >
+                                          AI
+                                        </Badge>
+                                      )}
+                                    </div>
+                                    <p className="text-xs text-gray-500">
+                                      {formatFileSize(file.file_size)} •{" "}
+                                      {file.width} × {file.height}
+                                    </p>
+                                  </div>
+                                  {isAssetSelected(file) && (
+                                    <div className="w-5 h-5 bg-primary rounded-full flex items-center justify-center ml-2">
+                                      <Check className="w-3 h-3 text-white" />
+                                    </div>
+                                  )}
+                                  <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        className="ml-2"
+                                        onClick={(e) => e.stopPropagation()}
+                                      >
+                                        <MoreVertical className="w-4 h-4" />
+                                      </Button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent
+                                      align="end"
+                                      className="bg-white border border-gray-200 shadow-lg"
+                                    >
+                                      <DropdownMenuItem
+                                        onClick={() => handleEditClick(file)}
+                                      >
+                                        <Edit3 className="w-4 h-4 mr-2" />
+                                        Edit
+                                      </DropdownMenuItem>
+                                      <DropdownMenuItem
+                                        onClick={() => handleDownloadFile(file)}
+                                      >
+                                        <Download className="w-4 h-4 mr-2" />
+                                        Download
+                                      </DropdownMenuItem>
+                                      <DropdownMenuSeparator />
+                                      <DropdownMenuItem
+                                        className="text-red-600"
+                                        onClick={() =>
+                                          handleDeleteClick(
+                                            "file",
+                                            file.id,
+                                            file.name
+                                          )
+                                        }
+                                      >
+                                        <Trash2 className="w-4 h-4 mr-2" />
+                                        Delete
+                                      </DropdownMenuItem>
+                                    </DropdownMenuContent>
+                                  </DropdownMenu>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
-              </div>
-            </TabsContent>
-          </Tabs>
+              )}
+
+              {activeTab === "upload" && (
+                <div className="flex-1 flex items-center justify-center p-8">
+                  <div className="text-center max-w-lg w-full">
+                    <div className="border-2 border-dashed border-gray-300 rounded-xl p-12 bg-gray-50 hover:border-primary transition-colors">
+                      <Upload className="h-16 w-16 text-gray-400 mx-auto mb-4" />
+                      <h3 className="text-xl font-semibold text-gray-900 mb-2">
+                        Upload Files
+                      </h3>
+                      <p className="text-gray-600 mb-6">
+                        Select images from your computer to add to your library
+                      </p>
+                      <div className="space-y-4">
+                        <Input
+                          type="file"
+                          multiple
+                          accept={acceptedFileTypes.join(",")}
+                          onChange={handleUploadFile}
+                          disabled={isUploading}
+                          className="file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-primary file:text-white hover:file:bg-primary/90 file:cursor-pointer"
+                        />
+                        {isUploading && (
+                          <div className="space-y-3 bg-white p-4 rounded-lg border border-gray-200">
+                            <div className="flex items-center justify-between text-sm font-medium">
+                              <span>Uploading files...</span>
+                              <span className="text-primary">
+                                {Math.round(uploadProgress)}%
+                              </span>
+                            </div>
+                            <div className="w-full bg-gray-200 rounded-full h-2">
+                              <div
+                                className="bg-primary h-2 rounded-full transition-all duration-300"
+                                style={{ width: `${uploadProgress}%` }}
+                              />
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                      <p className="text-sm text-gray-500 mt-4">
+                        Supports: JPG, PNG, WebP, GIF (Max 10MB each)
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {activeTab === "generate" && (
+                <div className="flex-1 overflow-y-auto p-6">
+                  <div className="max-w-2xl mx-auto space-y-6">
+                    <div className="text-center">
+                      <Wand2 className="w-12 h-12 text-primary mx-auto mb-4" />
+                      <h3 className="text-xl font-semibold mb-2 text-gray-900">
+                        Generate AI Image
+                      </h3>
+                      <p className="text-gray-600">
+                        Create a new image using AI based on your description.
+                      </p>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-6">
+                      <div className="space-y-4">
+                        <div>
+                          <label className="text-sm font-medium text-gray-700 block mb-2">
+                            Image Name
+                          </label>
+                          <Input
+                            value={generateForm.name}
+                            onChange={(e) =>
+                              setGenerateForm((prev) => ({
+                                ...prev,
+                                name: e.target.value,
+                              }))
+                            }
+                            placeholder="Enter image name"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-sm font-medium text-gray-700 block mb-2">
+                            Description/Prompt
+                          </label>
+                          <Textarea
+                            value={generateForm.prompt}
+                            onChange={(e) =>
+                              setGenerateForm((prev) => ({
+                                ...prev,
+                                prompt: e.target.value,
+                              }))
+                            }
+                            placeholder="Describe the image you want to generate"
+                            rows={4}
+                          />
+                        </div>
+                        <div>
+                          <label className="text-sm font-medium text-gray-700 block mb-2">
+                            Alt Text (Optional)
+                          </label>
+                          <Input
+                            value={generateForm.alt_text}
+                            onChange={(e) =>
+                              setGenerateForm((prev) => ({
+                                ...prev,
+                                alt_text: e.target.value,
+                              }))
+                            }
+                            placeholder="Alt text for accessibility"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-sm font-medium text-gray-700 block mb-2">
+                            Tags (Optional)
+                          </label>
+                          <Input
+                            value={generateForm.tags}
+                            onChange={(e) =>
+                              setGenerateForm((prev) => ({
+                                ...prev,
+                                tags: e.target.value,
+                              }))
+                            }
+                            placeholder="tag1, tag2, tag3"
+                          />
+                        </div>
+                      </div>
+                      <div className="space-y-4">
+                        <div>
+                          <label className="text-sm font-medium text-gray-700 block mb-2">
+                            Size
+                          </label>
+                          <Select
+                            value={generateForm.size}
+                            onValueChange={(
+                              value: "1024x1024" | "1792x1024" | "1024x1792"
+                            ) =>
+                              setGenerateForm((prev) => ({
+                                ...prev,
+                                size: value,
+                              }))
+                            }
+                          >
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="1024x1024">
+                                Square (1024×1024)
+                              </SelectItem>
+                              <SelectItem value="1792x1024">
+                                Landscape (1792×1024)
+                              </SelectItem>
+                              <SelectItem value="1024x1792">
+                                Portrait (1024×1792)
+                              </SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div>
+                          <label className="text-sm font-medium text-gray-700 block mb-2">
+                            Quality
+                          </label>
+                          <Select
+                            value={generateForm.quality}
+                            onValueChange={(value: "standard" | "hd") =>
+                              setGenerateForm((prev) => ({
+                                ...prev,
+                                quality: value,
+                              }))
+                            }
+                          >
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="standard">Standard</SelectItem>
+                              <SelectItem value="hd">
+                                HD (Higher Cost)
+                              </SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div>
+                          <label className="text-sm font-medium text-gray-700 block mb-2">
+                            Style
+                          </label>
+                          <Select
+                            value={generateForm.style}
+                            onValueChange={(value: "vivid" | "natural") =>
+                              setGenerateForm((prev) => ({
+                                ...prev,
+                                style: value,
+                              }))
+                            }
+                          >
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="vivid">
+                                Vivid (More stylized)
+                              </SelectItem>
+                              <SelectItem value="natural">
+                                Natural (More realistic)
+                              </SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <Button
+                          onClick={handleGenerateImage}
+                          disabled={
+                            isGenerating ||
+                            !generateForm.name.trim() ||
+                            !generateForm.prompt.trim()
+                          }
+                          className="w-full"
+                        >
+                          {isGenerating ? (
+                            <>
+                              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                              Generating...
+                            </>
+                          ) : (
+                            <>
+                              <Wand2 className="w-4 h-4 mr-2" />
+                              Generate Image
+                            </>
+                          )}
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
 
           {/* Footer */}
-          <div className="flex items-center justify-between bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-900 p-6 border-t border-gray-200 dark:border-gray-700 rounded-b-lg">
-            <div className="text-sm font-medium text-gray-700 dark:text-gray-300">
+          <div className="flex items-center justify-between bg-white p-6 border-t border-gray-200">
+            <div className="text-sm font-medium text-gray-600">
               {selectedAssets.length > 0 && (
-                <div className="flex items-center space-x-3 bg-blue-50 dark:bg-blue-900/30 px-4 py-2 rounded-full">
-                  <div className="w-3 h-3 bg-blue-500 rounded-full animate-pulse"></div>
-                  <span className="text-blue-700 dark:text-blue-300 font-semibold">
+                <div className="flex items-center space-x-3 bg-primary/10 px-4 py-2 rounded-lg">
+                  <div className="w-2 h-2 bg-primary rounded-full"></div>
+                  <span className="text-primary font-medium">
                     {selectedAssets.length} asset
                     {selectedAssets.length === 1 ? "" : "s"} selected
                   </span>
                 </div>
               )}
             </div>
-            <div className="flex space-x-4">
-              <Button
-                variant="outline"
-                onClick={onClose}
-                className="px-8 py-2 border-2 border-gray-300 hover:border-gray-400 rounded-xl"
-              >
+            <div className="flex space-x-3">
+              <Button variant="outline" onClick={onClose} className="px-6">
                 Cancel
               </Button>
               <Button
                 onClick={handleConfirmSelection}
                 disabled={selectedAssets.length === 0}
-                className="px-8 py-2 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white rounded-xl shadow-lg hover:shadow-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                className="px-6"
               >
                 <Check className="w-4 h-4 mr-2" />
                 Select{" "}
@@ -984,18 +1151,20 @@ export function AssetLibraryModal({
 
       {/* Create Folder Dialog */}
       <Dialog open={createFolderOpen} onOpenChange={setCreateFolderOpen}>
-        <DialogContent className="bg-white dark:bg-gray-900 border-2 border-gray-200 dark:border-gray-700">
-          <DialogHeader className="border-b border-gray-200 dark:border-gray-700 pb-4">
-            <DialogTitle className="text-lg font-bold text-gray-900 dark:text-white">
+        <DialogContent className="bg-white">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-semibold text-gray-900">
               Create New Folder
             </DialogTitle>
-            <DialogDescription className="text-gray-600 dark:text-gray-400">
+            <DialogDescription className="text-gray-600">
               Create a new folder to organize your assets.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div>
-              <label className="text-sm font-medium">Folder Name</label>
+              <label className="text-sm font-medium text-gray-700 block mb-2">
+                Folder Name
+              </label>
               <Input
                 value={folderForm.name}
                 onChange={(e) =>
@@ -1005,7 +1174,7 @@ export function AssetLibraryModal({
               />
             </div>
             <div>
-              <label className="text-sm font-medium">
+              <label className="text-sm font-medium text-gray-700 block mb-2">
                 Description (Optional)
               </label>
               <Textarea
@@ -1021,7 +1190,9 @@ export function AssetLibraryModal({
               />
             </div>
             <div>
-              <label className="text-sm font-medium">Color</label>
+              <label className="text-sm font-medium text-gray-700 block mb-2">
+                Color
+              </label>
               <div className="flex items-center space-x-2 mt-2">
                 {FOLDER_COLORS.map((color) => (
                   <button
@@ -1031,7 +1202,7 @@ export function AssetLibraryModal({
                     }
                     className={`w-6 h-6 rounded-full border-2 ${
                       folderForm.color === color.value
-                        ? "border-foreground"
+                        ? "border-gray-900"
                         : "border-transparent"
                     }`}
                     style={{ backgroundColor: color.value }}
@@ -1041,7 +1212,7 @@ export function AssetLibraryModal({
               </div>
             </div>
           </div>
-          <div className="flex justify-end space-x-2">
+          <DialogFooter>
             <Button
               variant="outline"
               onClick={() => setCreateFolderOpen(false)}
@@ -1049,16 +1220,166 @@ export function AssetLibraryModal({
               Cancel
             </Button>
             <Button onClick={handleCreateFolder}>Create Folder</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Image Modal */}
+      <Dialog open={editImageOpen} onOpenChange={setEditImageOpen}>
+        <DialogContent className="max-w-2xl bg-white">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-semibold text-gray-900">
+              Edit Image
+            </DialogTitle>
+            <DialogDescription className="text-gray-600">
+              Use AI to edit and modify your existing image with a new prompt.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid grid-cols-2 gap-6">
+            <div className="space-y-4">
+              <div>
+                <label className="text-sm font-medium text-gray-700 block mb-2">
+                  Edit Prompt
+                </label>
+                <Textarea
+                  value={editForm.prompt}
+                  onChange={(e) =>
+                    setEditForm((prev) => ({
+                      ...prev,
+                      prompt: e.target.value,
+                    }))
+                  }
+                  placeholder="Describe how you want to modify the image"
+                  rows={3}
+                  className="w-full"
+                />
+              </div>
+              {editingFile && (
+                <div>
+                  <label className="text-sm font-medium text-gray-700 block mb-2">
+                    Original Image
+                  </label>
+                  <div className="aspect-square relative rounded-lg overflow-hidden bg-gray-100 border border-gray-200">
+                    <img
+                      src={editingFile.thumbnail_url || editingFile.storage_url}
+                      alt={editingFile.alt_text || editingFile.name}
+                      className="object-cover w-full h-full"
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+            <div className="space-y-4">
+              <div>
+                <label className="text-sm font-medium text-gray-700 block mb-2">
+                  Size
+                </label>
+                <Select
+                  value={editForm.size}
+                  onValueChange={(
+                    value:
+                      | "1024x1024"
+                      | "1536x1024"
+                      | "1024x1536"
+                      | "256x256"
+                      | "512x512"
+                  ) => setEditForm((prev) => ({ ...prev, size: value }))}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="1024x1024">
+                      Square (1024×1024)
+                    </SelectItem>
+                    <SelectItem value="1536x1024">
+                      Landscape (1536×1024)
+                    </SelectItem>
+                    <SelectItem value="1024x1536">
+                      Portrait (1024×1536)
+                    </SelectItem>
+                    <SelectItem value="256x256">
+                      Small Square (256×256)
+                    </SelectItem>
+                    <SelectItem value="512x512">
+                      Medium Square (512×512)
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <label className="text-sm font-medium text-gray-700 block mb-2">
+                  Quality
+                </label>
+                <Select
+                  value={editForm.quality}
+                  onValueChange={(value: "auto" | "low" | "medium" | "high") =>
+                    setEditForm((prev) => ({ ...prev, quality: value }))
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="auto">Auto</SelectItem>
+                    <SelectItem value="low">Low</SelectItem>
+                    <SelectItem value="medium">Medium</SelectItem>
+                    <SelectItem value="high">High</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <label className="text-sm font-medium text-gray-700 block mb-2">
+                  Style
+                </label>
+                <Select
+                  value={editForm.style}
+                  onValueChange={(value: "vivid" | "natural") =>
+                    setEditForm((prev) => ({ ...prev, style: value }))
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="vivid">Vivid (More stylized)</SelectItem>
+                    <SelectItem value="natural">
+                      Natural (More realistic)
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
           </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditImageOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleEditImage} disabled={isGenerating}>
+              {isGenerating ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Editing...
+                </>
+              ) : (
+                <>
+                  <Edit3 className="w-4 h-4 mr-2" />
+                  Edit Image
+                </>
+              )}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 
       {/* Delete Confirmation Dialog */}
       <Dialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
-        <DialogContent className="bg-white  border-2 border-red-200 ">
+        <DialogContent className="bg-white">
           <DialogHeader>
-            <DialogTitle>Are you sure?</DialogTitle>
-            <DialogDescription>
+            <DialogTitle className="text-lg font-semibold text-gray-900">
+              Are you sure?
+            </DialogTitle>
+            <DialogDescription className="text-gray-600">
               This will permanently delete {deleteTarget?.type} &quot;
               {deleteTarget?.name}&quot;. This action cannot be undone.
             </DialogDescription>
@@ -1072,7 +1393,7 @@ export function AssetLibraryModal({
             </Button>
             <Button
               onClick={handleDeleteConfirm}
-              className="bg-red-600 hover:bg-red-700"
+              className="bg-red-600 hover:bg-red-700 text-white"
             >
               Delete
             </Button>

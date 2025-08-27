@@ -9,7 +9,7 @@
     "start": "node dist/app.js",
     "lint": "eslint src/**/*.ts",
     "clean": "rm -rf dist",
-    "types": "npx supabase gen types typescript --project-id 'bfyljtauivakkndryvdl' --schema public > database.types.ts"
+    "types": "npx supabase gen types typescript --project-id 'bfyljtauivakkndryvdl' --schema public > src/database.types.ts"
   },
   "dependencies": {
     "@elevenlabs/elevenlabs-js": "^2.12.0",
