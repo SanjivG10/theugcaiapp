@@ -30,22 +30,6 @@ const updateCampaignSchema = z.object({
   credits_used: z.number().int().min(0).optional(),
   metadata: z.record(z.any(), z.any()).optional(),
   script: z.string().optional(),
-  //   - scene_number
-  //   - scene_script
-  //   - audio {
-  //     previewUrl,
-  //     id,
-  //     metadata
-  //   }
-  //   - image {
-  //     name,
-  //     url,
-  //     isProcessing
-  //   }
-  //  - video {
-  //     prompt,
-  //     url,
-  //     isProcessing
   scene_data: z
     .array(
       z.object({
@@ -207,7 +191,7 @@ export class CampaignController {
 
       const { data: campaign, error } = await supabaseAdmin
         .from("campaigns")
-        .select("*, scenes_data")
+        .select("*, scene_data")
         .eq("id", id)
         .eq("user_id", userId)
         .single();
@@ -974,7 +958,7 @@ export class CampaignController {
       // Check if campaign exists and belongs to user
       const { data: campaign, error: fetchError } = await supabaseAdmin
         .from("campaigns")
-        .select("id, name, scenes_data, business_id")
+        .select("id, name, scene_data, business_id")
         .eq("id", campaignId)
         .eq("user_id", userId)
         .single();
@@ -982,7 +966,7 @@ export class CampaignController {
       if (fetchError || !campaign) {
         return res.status(404).json({
           success: false,
-          message: "Campaign not found",
+          message: fetchError?.message || "Campaign not found",
         });
       }
 
@@ -1023,18 +1007,13 @@ export class CampaignController {
           tone,
           style,
           totalScenes,
-          customPrompt,
+          customPrompt: customPrompt?.trim(),
         });
 
         let generatedScripts = "";
         for await (const chunk of stream) {
-          if (
-            chunk.choices &&
-            chunk.choices[0] &&
-            chunk.choices[0].delta &&
-            chunk.choices[0].delta.content
-          ) {
-            const content = chunk.choices[0].delta.content;
+          if (chunk.type === "response.output_text.delta") {
+            const content = chunk.delta;
             if (content) {
               generatedScripts += content;
               res.write(content);
@@ -1044,32 +1023,37 @@ export class CampaignController {
 
         res.end();
 
-        // Parse the JSON array response from OpenAI
         let parsedScripts: string[] = [];
         try {
           const parsed = JSON.parse(generatedScripts.trim());
           if (Array.isArray(parsed) && parsed.length === totalScenes) {
             parsedScripts = parsed;
           } else {
-            // Fallback: split by double newlines
             parsedScripts = generatedScripts
               .split("\n\n")
               .slice(0, totalScenes);
           }
-        } catch (parseError) {
-          // Fallback: split by double newlines
+        } catch {
           parsedScripts = generatedScripts.split("\n\n").slice(0, totalScenes);
         }
 
-        // Save the generated scripts to scenes_data
-        const currentScenesData =
-          (campaign.scenes_data as Array<{
-            index: number;
-            script?: string;
-            image_url?: string;
-            video_url?: string;
-            audio_url?: string;
-          }>) || [];
+        const currentScenesData: {
+          scene_number: number;
+          scene_script: string;
+          audio: {
+            previewUrl: string;
+          };
+          image: {
+            name: string;
+            url: string;
+            isProcessing: boolean;
+          };
+          video: {
+            prompt: string;
+            url: string;
+            isProcessing: boolean;
+          };
+        }[] = [];
 
         // Update or create scene entries for all scenes
         for (let i = 0; i < totalScenes; i++) {
@@ -1077,32 +1061,49 @@ export class CampaignController {
           const scriptContent = parsedScripts[i] || "";
 
           const existingSceneIndex = currentScenesData.findIndex(
-            (scene) => scene.index === sceneIndex
+            (scene) => scene.scene_number === sceneIndex
           );
 
           if (existingSceneIndex !== -1) {
             // Update existing scene
             currentScenesData[existingSceneIndex] = {
               ...currentScenesData[existingSceneIndex],
-              script: scriptContent.trim(),
+              scene_script: scriptContent.trim(),
             };
           } else {
             // Create new scene entry
             currentScenesData.push({
-              index: sceneIndex,
-              script: scriptContent.trim(),
+              scene_number: sceneIndex,
+              scene_script: scriptContent.trim(),
+              audio: {
+                previewUrl: "",
+              },
+              image: {
+                name: "",
+                url: "",
+                isProcessing: false,
+              },
+              video: {
+                prompt: "",
+                url: "",
+                isProcessing: false,
+              },
             });
           }
         }
 
-        // Sort scenes by index
-        currentScenesData.sort((a, b) => a.index - b.index);
+        currentScenesData.sort((a, b) => a.scene_number - b.scene_number);
 
         await supabaseAdmin
           .from("campaigns")
           .update({
-            scenes_data: currentScenesData,
+            scene_data: currentScenesData,
             updated_at: new Date().toISOString(),
+            script: {
+              tone,
+              style,
+              prompt: customPrompt?.trim(),
+            },
           })
           .eq("id", campaignId);
       } catch (error) {
@@ -1149,7 +1150,7 @@ export class CampaignController {
       // Check if campaign exists and belongs to user
       const { data: campaign, error: fetchError } = await supabaseAdmin
         .from("campaigns")
-        .select("id, name, scenes_data, business_id, settings")
+        .select("id, name, scene_data, business_id, settings")
         .eq("id", campaignId)
         .eq("user_id", userId)
         .single();
@@ -1233,9 +1234,9 @@ export class CampaignController {
           console.error("Failed to consume credits:", error);
         }
 
-        // Save the generated image to scenes_data
+        // Save the generated image to scene_data
         const currentScenesData =
-          (campaign.scenes_data as Array<{
+          (campaign.scene_data as Array<{
             index: number;
             script?: string;
             image_url?: string;
@@ -1268,7 +1269,7 @@ export class CampaignController {
         await supabaseAdmin
           .from("campaigns")
           .update({
-            scenes_data: currentScenesData,
+            scene_data: currentScenesData,
             updated_at: new Date().toISOString(),
           })
           .eq("id", campaignId);

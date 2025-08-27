@@ -52,7 +52,7 @@ Context:
 ${customPrompt ? `User's Ad Concept: ${customPrompt}` : ""}
 
 Your task:
-1. Create ${totalScenes} scene scripts based on the user's ad concept
+1. Create ${totalScenes} scene script(s) based on the user's ad concept
 2. Each scene should be 8-10 seconds long (10-15 words maximum)
 3. Scripts should flow together to create a cohesive story
 4. Use a ${tone} tone throughout
@@ -64,9 +64,9 @@ IMPORTANT: Return your response as a JSON array of exactly ${totalScenes} string
 
 Do not include any other text, formatting, or explanations - just the JSON array.`;
 
-    const stream = await this.client.chat.completions.create({
-      model: "gpt-4o-mini",
-      messages: [
+    const stream = await this.client.responses.create({
+      model: "gpt-4.1",
+      input: [
         {
           role: "system",
           content: systemPrompt,

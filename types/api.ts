@@ -420,15 +420,10 @@ export interface Campaign {
   id: string;
   name: string;
   description?: string;
-  campaign_type?: "video" | "image" | "script";
-  prompt?: string;
   status?: "draft" | "in_progress" | "completed" | "failed" | "cancelled";
   current_step?: number;
-  total_steps?: number;
-  scenes_number?: number;
+  scene_number?: number;
   final_url?: string;
-  step_data?: CampaignStepData;
-  settings?: CampaignSettings;
   script?: {
     tone: string;
     style: string;
@@ -453,16 +448,9 @@ export interface Campaign {
       isProcessing?: boolean;
     };
   }>;
-  metadata?: Json;
-  estimated_credits?: number;
   credits_used?: number;
-  output_urls?: string[];
-  thumbnail_url?: string;
-  is_template?: boolean;
-  started_at?: string;
-  completed_at?: string;
-  business_id: string;
-  user_id: string;
+  business_id?: string;
+  user_id?: string;
   created_at?: string;
   updated_at?: string;
 }
@@ -476,7 +464,8 @@ export interface CreateCampaignRequest {
 export interface UpdateCampaignRequest {
   name?: string;
   description?: string;
-  scenes_number?: number;
+  scene_number?: number;
+  final_url?: string;
   script?: {
     tone: string;
     style: string;
@@ -501,12 +490,9 @@ export interface UpdateCampaignRequest {
       isProcessing?: boolean;
     };
   }>;
-  campaign_type?: "video" | "image" | "script";
-  prompt?: string;
-  settings?: CampaignSettings;
   status?: "draft" | "in_progress" | "completed" | "failed" | "cancelled";
   current_step?: number;
-  step_data?: CampaignStepData;
+  credits_used?: number;
 }
 
 export interface CampaignStats {

@@ -9,12 +9,11 @@ The number of steps is big and redundant.
 Let's have
  
 
-1. Campaign setup 
-2. Script Generation
-3. Assets Setup (image selection + generation + everything happens here, combine them for existing flow)
-4. Video Prompts + video Generation (redo this component, combine them)
-5. Final Assembly + Edit (redo this)
-6. Preview + Export (create this)
+1. Script Generation
+2. Assets Setup (image selection + generation + everything happens here, combine them for existing flow)
+3. Video Prompts + video Generation (redo this component, combine them)
+4. Final Assembly + Edit (redo this)
+5. Preview + Export (create this)
 
 When we first create the campaign, we should ask the user for name, description and number of scenes (at max 5). On campaign setup, right now we are allowing user to change that number of scenes, let's not do that, let us only allow user to select number of scenes (default to one) from the modal. 
 

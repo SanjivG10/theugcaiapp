@@ -1,12 +1,10 @@
 "use client";
 
-import { CampaignSetup } from "@/components/campaign/CampaignSetup";
-import { FinalAssembly } from "@/components/campaign/FinalAssembly";
-import { ImageGeneration } from "@/components/campaign/ImageGeneration";
-import { ImageSelection } from "@/components/campaign/ImageSelection";
 import { ScriptGeneration } from "@/components/campaign/ScriptGeneration";
-import { VideoGeneration } from "@/components/campaign/VideoGeneration";
-import { VideoPrompts } from "@/components/campaign/VideoPrompts";
+import { AssetsSetup } from "@/components/campaign/AssetsSetup";
+import { VideoPromptsGeneration } from "@/components/campaign/VideoPromptsGeneration";
+import { FinalAssemblyEdit } from "@/components/campaign/FinalAssemblyEdit";
+import { PreviewExport } from "@/components/campaign/PreviewExport";
 import { Badge } from "@/components/ui/badge";
 import { URLS } from "@/constants/urls";
 import { CampaignProvider } from "@/contexts/CampaignContext";
@@ -19,13 +17,11 @@ import { useCallback, useEffect, useState } from "react";
 import toast from "react-hot-toast";
 
 const STEPS = [
-  { id: 1, title: "Campaign Setup", component: CampaignSetup },
-  { id: 2, title: "Script Generation", component: ScriptGeneration },
-  { id: 3, title: "Image Generation", component: ImageGeneration },
-  { id: 4, title: "Image Selection", component: ImageSelection },
-  { id: 5, title: "Video Prompts", component: VideoPrompts },
-  { id: 6, title: "Video Generation", component: VideoGeneration },
-  { id: 7, title: "Final Assembly", component: FinalAssembly },
+  { id: 1, title: "Script Generation", component: ScriptGeneration },
+  { id: 2, title: "Assets Setup", component: AssetsSetup },
+  { id: 3, title: "Video Prompts", component: VideoPromptsGeneration },
+  { id: 4, title: "Final Assembly", component: FinalAssemblyEdit },
+  { id: 5, title: "Preview & Export", component: PreviewExport },
 ];
 
 export default function CampaignEditPage() {
@@ -45,11 +41,8 @@ export default function CampaignEditPage() {
 
       if (response.success && response.data) {
         setCampaign(response.data);
+        // Start at step 1 (Script Generation) since we removed campaign setup
         setCurrentStep(response.data.current_step || 1);
-
-        if (response.data.settings || response.data.step_data) {
-          // This will be handled by the CampaignProvider
-        }
       } else {
         throw new Error(response.message);
       }

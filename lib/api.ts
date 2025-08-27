@@ -537,7 +537,9 @@ class ApiClient {
   }
 
   // Asset Library endpoints
-  async createAssetFolder(data: CreateAssetFolderRequest): Promise<ApiResponse<AssetFolder>> {
+  async createAssetFolder(
+    data: CreateAssetFolderRequest
+  ): Promise<ApiResponse<AssetFolder>> {
     const response = await this.client.post("/api/asset-library/folders", data);
     return response.data;
   }
@@ -583,7 +585,9 @@ class ApiClient {
     return response.data;
   }
 
-  async generateAssetImage(data: GenerateAssetImageRequest): Promise<ApiResponse<GenerateAssetImageResponse>> {
+  async generateAssetImage(
+    data: GenerateAssetImageRequest
+  ): Promise<ApiResponse<GenerateAssetImageResponse>> {
     const response = await this.client.post(
       "/api/asset-library/files/generate",
       data
@@ -591,11 +595,13 @@ class ApiClient {
     return response.data;
   }
 
-  async getAssetFiles(params?: GetAssetFilesOptions): Promise<ApiResponse<AssetFilesResponse>> {
+  async getAssetFiles(
+    params?: GetAssetFilesOptions
+  ): Promise<ApiResponse<AssetFilesResponse>> {
     const response = await this.client.get("/api/asset-library/files", {
       params: {
         ...params,
-        folder_id: params?.folder_id === null ? 'null' : params?.folder_id,
+        folder_id: params?.folder_id === null ? "null" : params?.folder_id,
       },
     });
     return response.data;
@@ -630,38 +636,43 @@ class ApiClient {
     const response = await this.client.get(
       `/api/asset-library/files/${fileId}/download`,
       {
-        responseType: 'blob',
+        responseType: "blob",
       }
     );
-    
+
     // Create download link
     const url = window.URL.createObjectURL(new Blob([response.data]));
-    const link = document.createElement('a');
+    const link = document.createElement("a");
     link.href = url;
-    
+
     // Extract filename from Content-Disposition header or use default
-    const contentDisposition = response.headers['content-disposition'];
-    let filename = 'download';
+    const contentDisposition = response.headers["content-disposition"];
+    let filename = "download";
     if (contentDisposition) {
-      const matches = /filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/.exec(contentDisposition);
+      const matches = /filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/.exec(
+        contentDisposition
+      );
       if (matches != null && matches[1]) {
-        filename = matches[1].replace(/['"]/g, '');
+        filename = matches[1].replace(/['"]/g, "");
       }
     }
-    
-    link.setAttribute('download', filename);
+
+    link.setAttribute("download", filename);
     document.body.appendChild(link);
     link.click();
     link.remove();
     window.URL.revokeObjectURL(url);
   }
 
-  async editAssetImage(fileId: string, data: {
-    prompt: string;
-    size?: '1024x1024' | '1536x1024' | '1024x1536' | '256x256' | '512x512';
-    quality?: 'auto' | 'standard' | 'low' | 'medium' | 'high';
-    style?: 'vivid' | 'natural';
-  }): Promise<ApiResponse<AssetFile>> {
+  async editAssetImage(
+    fileId: string,
+    data: {
+      prompt: string;
+      size?: "1024x1024" | "1536x1024" | "1024x1536" | "256x256" | "512x512";
+      quality?: "auto" | "standard" | "low" | "medium" | "high";
+      style?: "vivid" | "natural";
+    }
+  ): Promise<ApiResponse<AssetFile>> {
     const response = await this.client.post(
       `/api/asset-library/files/${fileId}/edit`,
       data

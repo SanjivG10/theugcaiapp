@@ -114,11 +114,11 @@ export function CampaignSetup({ onNext }: CampaignSetupProps) {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-muted-foreground">Number of scenes</p>
-                <p className="text-lg font-semibold">{state.scenesNumber} scene{state.scenesNumber > 1 ? "s" : ""}</p>
+                <p className="text-lg font-semibold">{state.sceneNumber} scene{state.sceneNumber > 1 ? "s" : ""}</p>
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">Estimated duration</p>
-                <p className="text-lg font-semibold">~{state.scenesNumber * 8} seconds</p>
+                <p className="text-lg font-semibold">~{state.sceneNumber * 8} seconds</p>
               </div>
             </div>
           </div>

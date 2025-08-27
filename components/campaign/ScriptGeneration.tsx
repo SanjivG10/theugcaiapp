@@ -54,11 +54,11 @@ export function ScriptGeneration({ onNext, onPrev }: ScriptGenerationProps) {
 
   // Initialize scene scripts when component loads or number of scenes changes
   React.useEffect(() => {
-    if (state.scenesNumber > 0) {
+    if (state.sceneNumber > 0) {
       // Load from saved scene data if available
       if (state.sceneData && state.sceneData.length > 0) {
         const savedScripts = state.sceneData
-          .slice(0, state.scenesNumber)
+          .slice(0, state.sceneNumber)
           .map((scene) => ({
             id: `scene-${scene.scene_number}`,
             sceneNumber: scene.scene_number,
@@ -68,7 +68,7 @@ export function ScriptGeneration({ onNext, onPrev }: ScriptGenerationProps) {
       } else {
         // Initialize empty scripts for each scene
         const newSceneScripts: SceneScript[] = Array.from(
-          { length: state.scenesNumber },
+          { length: state.sceneNumber },
           (_, index) => ({
             id: `scene-${index + 1}`,
             sceneNumber: index + 1,
@@ -78,7 +78,7 @@ export function ScriptGeneration({ onNext, onPrev }: ScriptGenerationProps) {
         setSceneScripts(newSceneScripts);
       }
     }
-  }, [state.scenesNumber, state.sceneData]);
+  }, [state.sceneNumber, state.sceneData]);
 
   React.useEffect(() => {
     if (state.script) {
@@ -151,7 +151,7 @@ export function ScriptGeneration({ onNext, onPrev }: ScriptGenerationProps) {
         tone: globalSettings.tone,
         style: globalSettings.style,
         customPrompt: adPrompt,
-        totalScenes: state.scenesNumber,
+        totalScenes: state.sceneNumber,
       });
 
       const reader = stream.getReader();
@@ -171,19 +171,19 @@ export function ScriptGeneration({ onNext, onPrev }: ScriptGenerationProps) {
       let finalScripts: string[];
       try {
         const parsed = JSON.parse(generatedContent);
-        if (Array.isArray(parsed) && parsed.length === state.scenesNumber) {
+        if (Array.isArray(parsed) && parsed.length === state.sceneNumber) {
           finalScripts = parsed;
         } else {
           // Fallback: split by double newlines if not proper JSON array
           finalScripts = generatedContent
             .split("\n\n")
-            .slice(0, state.scenesNumber);
+            .slice(0, state.sceneNumber);
         }
       } catch {
         // Fallback: split by double newlines
         finalScripts = generatedContent
           .split("\n\n")
-          .slice(0, state.scenesNumber);
+          .slice(0, state.sceneNumber);
       }
 
       // Update scene scripts with parsed content
@@ -196,7 +196,7 @@ export function ScriptGeneration({ onNext, onPrev }: ScriptGenerationProps) {
 
       // Credits are consumed by the API endpoint
       setCurrentCredits((prev) => prev - 1);
-      toast.success(`All ${state.scenesNumber} scene scripts generated!`);
+      toast.success(`All ${state.sceneNumber} scene scripts generated!`);
     } catch (error) {
       console.error("Failed to generate scripts:", error);
       toast.error("Failed to generate scripts. Please try again.");
@@ -208,7 +208,7 @@ export function ScriptGeneration({ onNext, onPrev }: ScriptGenerationProps) {
     state.campaignName,
     state.campaignObjective,
     state.campaignId,
-    state.numberOfScenes,
+    state.sceneNumber,
     globalSettings,
     setCurrentCredits,
     setShowCreditModal,
@@ -256,9 +256,9 @@ export function ScriptGeneration({ onNext, onPrev }: ScriptGenerationProps) {
       return;
     }
 
-    if (completedScenes < state.scenesNumber) {
+    if (completedScenes < state.sceneNumber) {
       toast.error(
-        `Please complete all ${state.scenesNumber} scene scripts (${completedScenes}/${state.scenesNumber} completed)`
+        `Please complete all ${state.sceneNumber} scene scripts (${completedScenes}/${state.sceneNumber} completed)`
       );
       return;
     }
@@ -320,7 +320,7 @@ export function ScriptGeneration({ onNext, onPrev }: ScriptGenerationProps) {
           Scene Scripts
         </h2>
         <p className="text-muted-foreground text-sm">
-          Create scripts for each of your {state.scenesNumber} scenes. You can
+          Create scripts for each of your {state.sceneNumber} scenes. You can
           use AI generation with custom prompts or write manually for each
           scene.
         </p>
@@ -334,7 +334,7 @@ export function ScriptGeneration({ onNext, onPrev }: ScriptGenerationProps) {
               <CardTitle>Generate Ad Script</CardTitle>
               <p className="text-sm text-muted-foreground">
                 Describe your ad concept and AI will create scripts for all{" "}
-                {state.scenesNumber} scenes
+                {state.sceneNumber} scenes
               </p>
             </div>
             <CreditDisplay
@@ -459,7 +459,7 @@ export function ScriptGeneration({ onNext, onPrev }: ScriptGenerationProps) {
           <div className="flex items-center justify-between">
             <h3 className="text-lg font-semibold">Generated Scene Scripts</h3>
             <div className="text-sm text-muted-foreground">
-              {getCompletedScenesCount()}/{state.scenesNumber} scenes
+              {getCompletedScenesCount()}/{state.sceneNumber} scenes
               completed
             </div>
           </div>
@@ -523,7 +523,7 @@ export function ScriptGeneration({ onNext, onPrev }: ScriptGenerationProps) {
               <div className="flex items-center space-x-2">
                 <FileText className="w-4 h-4" />
                 <span>
-                  {getCompletedScenesCount()}/{state.scenesNumber} scenes
+                  {getCompletedScenesCount()}/{state.sceneNumber} scenes
                   completed
                 </span>
               </div>
@@ -544,11 +544,11 @@ export function ScriptGeneration({ onNext, onPrev }: ScriptGenerationProps) {
             </div>
 
             <div className="text-sm font-medium">
-              {getCompletedScenesCount() === state.scenesNumber ? (
+              {getCompletedScenesCount() === state.sceneNumber ? (
                 <span className="text-green-600">All scenes ready!</span>
               ) : (
                 <span className="text-amber-600">
-                  {state.scenesNumber - getCompletedScenesCount()} scenes
+                  {state.sceneNumber - getCompletedScenesCount()} scenes
                   remaining
                 </span>
               )}
@@ -569,7 +569,7 @@ export function ScriptGeneration({ onNext, onPrev }: ScriptGenerationProps) {
           }
           className="px-8"
         >
-          {isLoading ? "Saving..." : "Next: Generate Images"}
+          {isLoading ? "Saving..." : "Next: Assets Setup"}
         </Button>
       </div>
 
